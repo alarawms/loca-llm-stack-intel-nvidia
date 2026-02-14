@@ -18,12 +18,15 @@ RUN apt-get update && \
 WORKDIR /build
 
 # Clone whisper.cpp and build with CUDA
+# Cap parallelism: CUDA nvcc linking is very memory-hungry (~2-4GB per job),
+# so limit to min(nproc, 4) to avoid OOM during the device-code link phase.
 RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git && \
     cd whisper.cpp && \
     cmake -B build \
         -DGGML_CUDA=ON \
         -DCMAKE_BUILD_TYPE=Release && \
-    cmake --build build --config Release -j"$(nproc)"
+    JOBS=$(nproc) && [ "$JOBS" -gt 4 ] && JOBS=4; \
+    cmake --build build --config Release -j"$JOBS"
 
 # Download default model (base.en — good speed/quality balance)
 RUN cd whisper.cpp && \
