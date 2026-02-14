@@ -36,6 +36,10 @@ export LLM_ARC_WHISPER_IMAGE="localhost/whisper-sycl:latest"
 export LLM_ARC_PIPER_IMAGE="docker.io/rhasspy/wyoming-piper:latest"
 export LLM_ARC_WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
 
+# ── NVIDIA container images ───────────────────────────────────────
+export LLM_ARC_OLLAMA_CUDA_IMAGE="docker.io/ollama/ollama:latest"
+export LLM_ARC_WHISPER_CUDA_IMAGE="localhost/whisper-cuda:latest"
+
 # ── GPU backend selection (ipex or vulkan) ───────────────────────
 # Set by detect-gpu.sh or override manually
 export LLM_ARC_GPU_BACKEND="${LLM_ARC_GPU_BACKEND:-ipex}"
@@ -46,6 +50,15 @@ export LLM_ARC_GPU_ENV_VARS=(
     "SYCL_CACHE_PERSISTENT=1"
     "SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1"
     "BIGDL_LLM_XMX_DISABLED=0"
+    "OLLAMA_HOST=0.0.0.0"
+    "OLLAMA_ORIGINS=*"
+    "OLLAMA_NUM_GPU=999"
+)
+
+# ── NVIDIA GPU environment (for CUDA containers) ──────────────────
+export LLM_ARC_NVIDIA_ENV_VARS=(
+    "NVIDIA_VISIBLE_DEVICES=all"
+    "NVIDIA_DRIVER_CAPABILITIES=compute,utility"
     "OLLAMA_HOST=0.0.0.0"
     "OLLAMA_ORIGINS=*"
     "OLLAMA_NUM_GPU=999"
@@ -93,6 +106,7 @@ ollama_cli() {
 
 # ── GPU detection cache (populated by detect-gpu.sh) ────────────
 # These are overwritten when detect-gpu.sh runs
+export LLM_ARC_GPU_VENDOR="${LLM_ARC_GPU_VENDOR:-unknown}"
 export LLM_ARC_GPU_TYPE="${LLM_ARC_GPU_TYPE:-unknown}"
 export LLM_ARC_GPU_DEVICE="${LLM_ARC_GPU_DEVICE:-}"
 export LLM_ARC_GPU_RENDER_NODE="${LLM_ARC_GPU_RENDER_NODE:-/dev/dri/renderD128}"
