@@ -3,11 +3,11 @@ Description=Local AI Stack (LLM + STT + TTS + WebUI)
 
 [Pod]
 PodName=ai-stack
-# All ports bind to 127.0.0.1 only — no network exposure
-PublishPort=127.0.0.1:11434:11434
-PublishPort=127.0.0.1:9000:9000
-PublishPort=127.0.0.1:5002:5002
-PublishPort=127.0.0.1:8080:8080
+# Ports bind to all interfaces (0.0.0.0) for Tailscale access
+PublishPort=0.0.0.0:11434:11434
+PublishPort=0.0.0.0:9000:9000
+PublishPort=0.0.0.0:5002:5002
+PublishPort=0.0.0.0:8080:8080
 
 [Install]
 WantedBy=default.target
