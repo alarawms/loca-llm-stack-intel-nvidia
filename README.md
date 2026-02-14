@@ -51,12 +51,12 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 
 | Service | Port | Description |
 |---------|------|-------------|
-| Ollama | `127.0.0.1:11434` | LLM inference (GPU-accelerated) |
-| Whisper | `127.0.0.1:9000` | Speech-to-text (SYCL on GPU) |
-| Piper | `127.0.0.1:5002` | Text-to-speech (CPU, Wyoming protocol) |
-| Open WebUI | `127.0.0.1:8080` | Web chat interface |
+| Ollama | `:11434` | LLM inference (GPU-accelerated) |
+| Whisper | `:9000` | Speech-to-text (GPU-accelerated) |
+| Piper | `:5002` | Text-to-speech (CPU, Wyoming protocol) |
+| Open WebUI | `:8080` | Web chat interface |
 
-Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (0.0.0.0) for Tailscale access.
+Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (`0.0.0.0`) for Tailscale access. Use firewall rules (firewalld/nftables) to restrict LAN access if needed.
 
 ## Management
 

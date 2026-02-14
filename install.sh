@@ -44,21 +44,22 @@ echo ""
 log_step "Step 1/10: Checking host prerequisites"
 
 # Quick checks (don't abort on failure, just warn)
-prereq_ok=1
-
-if ! id -nG | tr ' ' '\n' | grep -qx render; then
-    log_warn "User not in 'render' group. Run: sudo usermod -aG render $USER"
-    prereq_ok=0
-fi
-
 if ! command -v podman &>/dev/null; then
     log_error "Podman not installed. Install it first: sudo dnf install podman"
     exit 1
 fi
 
-if ! compgen -G "/dev/dri/renderD*" >/dev/null; then
-    log_error "No GPU render nodes found at /dev/dri/renderD*"
-    exit 1
+# Vendor-aware GPU access check
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
+    log_info "NVIDIA GPU detected (render group and /dev/dri not required)"
+else
+    if ! id -nG | tr ' ' '\n' | grep -qx render; then
+        log_warn "User not in 'render' group. Run: sudo usermod -aG render $USER"
+    fi
+    if ! compgen -G "/dev/dri/renderD*" >/dev/null; then
+        log_error "No GPU render nodes found at /dev/dri/renderD*"
+        exit 1
+    fi
 fi
 
 require_cmd curl
@@ -139,7 +140,7 @@ for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
             ollama.container)
                 sed -e 's|Image=localhost/ollama-ipex:latest|Image=docker.io/ollama/ollama:latest|' \
                     -e 's|Description=.*|Description=Ollama LLM Server (NVIDIA CUDA GPU)|' \
-                    -e 's|AddDevice=/dev/dri|AddDevice=nvidia.com/gpu=all|' \
+                    -e 's|AddDevice=/dev/dri.*|AddDevice=nvidia.com/gpu=all|' \
                     -e '/GroupAdd=keep-groups/d' \
                     -e '/SYCL_CACHE_PERSISTENT/d' \
                     -e '/SYCL_PI_LEVEL_ZERO/d' \
@@ -154,7 +155,7 @@ for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
             whisper.container)
                 sed -e 's|Image=localhost/whisper-sycl:latest|Image=localhost/whisper-cuda:latest|' \
                     -e 's|Description=.*|Description=Whisper Speech-to-Text Server (NVIDIA CUDA GPU)|' \
-                    -e 's|AddDevice=/dev/dri|AddDevice=nvidia.com/gpu=all|' \
+                    -e 's|AddDevice=/dev/dri.*|AddDevice=nvidia.com/gpu=all|' \
                     -e '/GroupAdd=keep-groups/d' \
                     -e '/ONEAPI_DEVICE_SELECTOR/d' \
                     -e '/ZES_ENABLE_SYSMAN/d' \

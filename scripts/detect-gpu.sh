@@ -95,8 +95,9 @@ detect_nvidia_gpu() {
     local gpu_name vram_mb
     gpu_name=$(echo "$line" | cut -d, -f1 | xargs)
     vram_mb=$(echo "$line" | cut -d, -f2 | xargs)
+    vram_mb="${vram_mb%%.*}"  # Strip any decimal portion for integer arithmetic
 
-    # Find the render node for NVIDIA
+    # Best-effort render node mapping (NVIDIA uses CDI, not render nodes directly)
     local nvidia_render=""
     for card_dir in /sys/class/drm/card[0-9]*; do
         [[ -d "$card_dir/device" ]] || continue
