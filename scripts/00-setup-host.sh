@@ -17,6 +17,20 @@ source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 FIX_MODE=0
 [[ "${1:-}" == "--fix" ]] && FIX_MODE=1
 
+# ── Quick vendor detection (for conditional checks) ───────────────
+GPU_VENDOR="unknown"
+if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
+    GPU_VENDOR="nvidia"
+elif compgen -G "/sys/class/drm/card*/device/vendor" >/dev/null 2>&1; then
+    for vf in /sys/class/drm/card*/device/vendor; do
+        if [[ "$(cat "$vf" 2>/dev/null)" == "0x8086" ]]; then
+            GPU_VENDOR="intel"
+            break
+        fi
+    done
+fi
+log_info "Detected GPU vendor hint: $GPU_VENDOR"
+
 ERRORS=0
 WARNINGS=0
 
@@ -61,41 +75,72 @@ check "Kernel >= 6.2 (have: $(uname -r))" check_kernel
 # ── User groups ──────────────────────────────────────────────────
 log_step "Checking user groups"
 
-check_group() { id -nG | tr ' ' '\n' | grep -qx "$1"; }
+if [[ "$GPU_VENDOR" != "nvidia" ]]; then
+    check_group() { id -nG | tr ' ' '\n' | grep -qx "$1"; }
 
-if ! check "User $(whoami) in 'render' group" check_group render; then
-    if [[ $FIX_MODE -eq 1 ]]; then
-        log_info "Attempting: sudo usermod -aG render $USER"
-        sudo usermod -aG render "$USER" && log_ok "Added to render group (re-login required)"
-    else
-        log_info "Fix: sudo usermod -aG render $USER"
+    if ! check "User $(whoami) in 'render' group" check_group render; then
+        if [[ $FIX_MODE -eq 1 ]]; then
+            log_info "Attempting: sudo usermod -aG render $USER"
+            sudo usermod -aG render "$USER" && log_ok "Added to render group (re-login required)"
+        else
+            log_info "Fix: sudo usermod -aG render $USER"
+        fi
     fi
+
+    if ! check "User $(whoami) in 'video' group" check_group video; then
+        if [[ $FIX_MODE -eq 1 ]]; then
+            log_info "Attempting: sudo usermod -aG video $USER"
+            sudo usermod -aG video "$USER" && log_ok "Added to video group (re-login required)"
+        else
+            log_info "Fix: sudo usermod -aG video $USER"
+        fi
+    fi
+else
+    log_info "NVIDIA GPU: render/video groups not required (using CDI)"
 fi
 
-if ! check "User $(whoami) in 'video' group" check_group video; then
-    if [[ $FIX_MODE -eq 1 ]]; then
-        log_info "Attempting: sudo usermod -aG video $USER"
-        sudo usermod -aG video "$USER" && log_ok "Added to video group (re-login required)"
-    else
-        log_info "Fix: sudo usermod -aG video $USER"
-    fi
+# ── GPU device nodes (Intel only) ─────────────────────────────────
+if [[ "$GPU_VENDOR" != "nvidia" ]]; then
+    log_step "Checking GPU device nodes"
+
+    check_render_node() {
+        compgen -G "/dev/dri/renderD*" > /dev/null
+    }
+    check "Render node exists (/dev/dri/renderD*)" check_render_node
+
+    check_render_access() {
+        for node in /dev/dri/renderD*; do
+            [[ -r "$node" && -w "$node" ]] && return 0
+        done
+        return 1
+    }
+    check "Render node is read/write accessible" check_render_access
 fi
 
-# ── GPU device nodes ─────────────────────────────────────────────
-log_step "Checking GPU device nodes"
+# ── NVIDIA Container Toolkit (NVIDIA only) ────────────────────────
+if [[ "$GPU_VENDOR" == "nvidia" ]]; then
+    log_step "Checking NVIDIA Container Toolkit"
 
-check_render_node() {
-    compgen -G "/dev/dri/renderD*" > /dev/null
-}
-check "Render node exists (/dev/dri/renderD*)" check_render_node
+    check "nvidia-smi responds" nvidia-smi
 
-check_render_access() {
-    for node in /dev/dri/renderD*; do
-        [[ -r "$node" && -w "$node" ]] && return 0
-    done
-    return 1
-}
-check "Render node is read/write accessible" check_render_access
+    if ! check "nvidia-ctk installed" command -v nvidia-ctk; then
+        log_info "Fix: Install nvidia-container-toolkit"
+        log_info "  See: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/install-guide.html"
+    fi
+
+    # Check CDI spec exists
+    check_cdi_spec() {
+        nvidia-ctk cdi list 2>/dev/null | grep -q "nvidia.com/gpu"
+    }
+    if ! check "CDI spec generated for Podman" check_cdi_spec; then
+        if [[ $FIX_MODE -eq 1 ]]; then
+            log_info "Attempting: sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"
+            sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml && log_ok "CDI spec generated"
+        else
+            log_info "Fix: sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"
+        fi
+    fi
+fi
 
 # ── Required commands ────────────────────────────────────────────
 log_step "Checking required tools"
