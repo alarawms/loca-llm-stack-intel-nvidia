@@ -124,7 +124,9 @@ detect_nvidia_gpu() {
     export LLM_ARC_GPU_VRAM_MB="$vram_mb"
     export LLM_ARC_GPU_NAME="NVIDIA $gpu_name"
     export LLM_ARC_GPU_BACKEND="cuda"
-    export LLM_ARC_GPU_RECOMMENDED_MODELS=$(recommend_models "$vram_mb")
+    local models
+    models=$(recommend_models "$vram_mb")
+    export LLM_ARC_GPU_RECOMMENDED_MODELS="$models"
 
     return 0
 }
