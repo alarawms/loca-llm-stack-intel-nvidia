@@ -1,6 +1,6 @@
 # llm-arc
 
-Local AI stack for Intel Arc GPUs, managed with Podman Quadlet and integrated with Emacs.
+Local AI stack for Intel Arc and NVIDIA GPUs, managed with Podman Quadlet and integrated with Emacs.
 
 Runs **Ollama** (LLM), **Whisper** (speech-to-text), **Piper** (text-to-speech), and **Open WebUI** in a single rootless pod with GPU passthrough.
 
@@ -29,6 +29,7 @@ The installer will:
 - **Podman** >= 4.4 (for Quadlet support)
 - User in `render` and `video` groups
 - `curl`, `jq` (optional but recommended)
+- **NVIDIA GPU** (optional): Requires `nvidia-container-toolkit` for CDI passthrough
 
 ## GPU Support
 
@@ -39,8 +40,12 @@ The installer will:
 | Arc A-series (Alchemist) | dGPU | Vulkan | Best |
 | Arc B-series (Battlemage) | dGPU | Vulkan | Best |
 | Arc Pro | dGPU | IPEX-LLM (SYCL) | Good |
+| GeForce GTX 10/16-series | dGPU | CUDA | Good |
+| GeForce RTX 20/30-series | dGPU | CUDA | Great |
+| GeForce RTX 40/50-series | dGPU | CUDA | Best |
+| Tesla, A100, H100, L40 | dGPU | CUDA | Best |
 
-Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_BACKEND=vulkan`.
+Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_BACKEND=vulkan` (Intel) or `LLM_ARC_GPU_BACKEND=cuda` (NVIDIA).
 
 ## Services
 
@@ -51,7 +56,7 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 | Piper | `127.0.0.1:5002` | Text-to-speech (CPU, Wyoming protocol) |
 | Open WebUI | `127.0.0.1:8080` | Web chat interface |
 
-All ports are localhost-only. Services run in a shared Podman pod (`ai-stack`).
+Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (0.0.0.0) for Tailscale access.
 
 ## Management
 
@@ -132,6 +137,7 @@ llm-arc/
     Containerfile.ollama-ipex       # Ollama + IPEX-LLM (SYCL, for iGPU)
     Containerfile.ollama-vulkan     # Ollama + Vulkan (for discrete Arc)
     Containerfile.whisper-sycl      # whisper.cpp with SYCL backend
+    Containerfile.whisper-cuda      # Whisper with CUDA backend (for NVIDIA)
   quadlet/
     ai-stack.pod                    # Pod definition (shared network)
     ollama.container                # Ollama Quadlet unit
@@ -173,3 +179,12 @@ sudo usermod -aG render,video $USER
 **Whisper slow on first start**: SYCL compiles GPU kernels on first run. Set `SYCL_CACHE_PERSISTENT=1` (already configured) so subsequent starts are fast.
 
 **Ollama out of memory**: Use a smaller quantized model. Run `./scripts/models.sh recommend` for VRAM-appropriate suggestions.
+
+**NVIDIA GPU not detected**: Ensure `nvidia-smi` works and shows your GPU. Install the NVIDIA driver if missing.
+
+**NVIDIA container fails**: Install nvidia-container-toolkit and generate CDI spec:
+```bash
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+```
+
+**NVIDIA + Intel both present**: The installer prefers NVIDIA. Override with `LLM_ARC_GPU_VENDOR=intel`.
