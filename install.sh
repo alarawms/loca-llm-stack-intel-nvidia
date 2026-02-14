@@ -36,7 +36,7 @@ done
 echo ""
 echo "╔══════════════════════════════════════════════════════╗"
 echo "║          llm-arc — Local AI Stack Installer          ║"
-echo "║       Intel Arc GPU · Podman · Emacs Integration     ║"
+echo "║     Intel Arc / NVIDIA GPU · Podman · Emacs          ║"
 echo "╚══════════════════════════════════════════════════════╝"
 echo ""
 
@@ -65,7 +65,7 @@ require_cmd curl
 log_ok "Prerequisites OK"
 
 # ── Step 2: Detect GPU ───────────────────────────────────────────
-log_step "Step 2/10: Detecting Intel GPU"
+log_step "Step 2/10: Detecting GPU"
 
 bash "${LLM_ARC_SCRIPTS}/detect-gpu.sh" --save
 source "${LLM_ARC_CONFIG}/gpu.env"
@@ -77,25 +77,41 @@ log_info "Backend: $LLM_ARC_GPU_BACKEND | VRAM: ~${LLM_ARC_GPU_VRAM_MB}MB"
 if [[ $SKIP_BUILD -eq 0 ]]; then
     log_step "Step 3/10: Building container images"
 
-    if [[ "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
-        log_info "Building Vulkan Ollama image..."
-        podman build -t ollama-vulkan:latest \
-            -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-vulkan" \
-            "${LLM_ARC_DIR}"
-        log_ok "ollama-vulkan:latest built"
-    else
-        log_info "Building IPEX-LLM Ollama image..."
-        podman build -t ollama-ipex:latest \
-            -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-ipex" \
-            "${LLM_ARC_DIR}"
-        log_ok "ollama-ipex:latest built"
-    fi
+    case "${LLM_ARC_GPU_VENDOR:-intel}" in
+        nvidia)
+            log_info "NVIDIA GPU detected — using stock Ollama image (has CUDA)"
+            log_info "Pulling Ollama CUDA image..."
+            podman pull "$LLM_ARC_OLLAMA_CUDA_IMAGE"
+            log_ok "Ollama CUDA image pulled"
 
-    log_info "Building Whisper SYCL image..."
-    podman build -t whisper-sycl:latest \
-        -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" \
-        "${LLM_ARC_DIR}"
-    log_ok "whisper-sycl:latest built"
+            log_info "Building Whisper CUDA image..."
+            podman build -t whisper-cuda:latest \
+                -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-cuda" \
+                "${LLM_ARC_DIR}"
+            log_ok "whisper-cuda:latest built"
+            ;;
+        *)
+            if [[ "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
+                log_info "Building Vulkan Ollama image..."
+                podman build -t ollama-vulkan:latest \
+                    -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-vulkan" \
+                    "${LLM_ARC_DIR}"
+                log_ok "ollama-vulkan:latest built"
+            else
+                log_info "Building IPEX-LLM Ollama image..."
+                podman build -t ollama-ipex:latest \
+                    -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-ipex" \
+                    "${LLM_ARC_DIR}"
+                log_ok "ollama-ipex:latest built"
+            fi
+
+            log_info "Building Whisper SYCL image..."
+            podman build -t whisper-sycl:latest \
+                -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" \
+                "${LLM_ARC_DIR}"
+            log_ok "whisper-sycl:latest built"
+            ;;
+    esac
 
     log_info "Pulling Piper TTS image..."
     podman pull "$LLM_ARC_PIPER_IMAGE"
@@ -115,16 +131,51 @@ mkdir -p "$LLM_ARC_QUADLET_DIR"
 
 for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
     [[ -f "$f" ]] || continue
-    basename=$(basename "$f")
+    local_basename=$(basename "$f")
 
-    # Rewrite ollama image if using vulkan backend
-    if [[ "$basename" == "ollama.container" && "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
+    if [[ "${LLM_ARC_GPU_VENDOR:-intel}" == "nvidia" ]]; then
+        # NVIDIA: rewrite ollama and whisper container units
+        case "$local_basename" in
+            ollama.container)
+                sed -e 's|Image=localhost/ollama-ipex:latest|Image=docker.io/ollama/ollama:latest|' \
+                    -e 's|Description=.*|Description=Ollama LLM Server (NVIDIA CUDA GPU)|' \
+                    -e 's|AddDevice=/dev/dri|AddDevice=nvidia.com/gpu=all|' \
+                    -e '/GroupAdd=keep-groups/d' \
+                    -e '/SYCL_CACHE_PERSISTENT/d' \
+                    -e '/SYCL_PI_LEVEL_ZERO/d' \
+                    -e '/ZES_ENABLE_SYSMAN/d' \
+                    -e '/BIGDL_LLM_XMX_DISABLED/d' \
+                    -e '/Volume=.*sycl-cache/d' \
+                    "$f" > "${LLM_ARC_QUADLET_DIR}/${local_basename}"
+                # Add NVIDIA env vars
+                sed -i '/OLLAMA_NUM_GPU/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility' \
+                    "${LLM_ARC_QUADLET_DIR}/${local_basename}"
+                ;;
+            whisper.container)
+                sed -e 's|Image=localhost/whisper-sycl:latest|Image=localhost/whisper-cuda:latest|' \
+                    -e 's|Description=.*|Description=Whisper Speech-to-Text Server (NVIDIA CUDA GPU)|' \
+                    -e 's|AddDevice=/dev/dri|AddDevice=nvidia.com/gpu=all|' \
+                    -e '/GroupAdd=keep-groups/d' \
+                    -e '/ONEAPI_DEVICE_SELECTOR/d' \
+                    -e '/ZES_ENABLE_SYSMAN/d' \
+                    -e '/SYCL_CACHE_PERSISTENT/d' \
+                    "$f" > "${LLM_ARC_QUADLET_DIR}/${local_basename}"
+                # Add NVIDIA env vars
+                sed -i '/^\[Container\]/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility' \
+                    "${LLM_ARC_QUADLET_DIR}/${local_basename}"
+                ;;
+            *)
+                cp "$f" "${LLM_ARC_QUADLET_DIR}/${local_basename}"
+                ;;
+        esac
+    elif [[ "$local_basename" == "ollama.container" && "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
+        # Intel Vulkan: existing behavior
         sed 's|Image=localhost/ollama-ipex:latest|Image=localhost/ollama-vulkan:latest|' \
-            "$f" > "${LLM_ARC_QUADLET_DIR}/${basename}"
+            "$f" > "${LLM_ARC_QUADLET_DIR}/${local_basename}"
     else
-        cp "$f" "${LLM_ARC_QUADLET_DIR}/${basename}"
+        cp "$f" "${LLM_ARC_QUADLET_DIR}/${local_basename}"
     fi
-    log_ok "  → ${basename}"
+    log_ok "  → ${local_basename}"
 done
 
 # ── Step 5: Create model directories ────────────────────────────
