@@ -1,0 +1,59 @@
+# Containerfile.whisper-cuda — whisper.cpp with CUDA backend for NVIDIA GPUs
+#
+# Multi-stage build:
+#   1. Build whisper.cpp with CUDA support
+#   2. Runtime image with just the server binary and CUDA libs
+#
+# Build:
+#   podman build -t whisper-cuda:latest -f containers/Containerfile.whisper-cuda .
+
+# ── Stage 1: Build ───────────────────────────────────────────────
+FROM docker.io/nvidia/cuda:12.6.3-devel-ubuntu22.04 AS builder
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        git cmake build-essential curl ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+WORKDIR /build
+
+# Clone whisper.cpp and build with CUDA
+RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git && \
+    cd whisper.cpp && \
+    cmake -B build \
+        -DGGML_CUDA=ON \
+        -DCMAKE_BUILD_TYPE=Release && \
+    cmake --build build --config Release -j"$(nproc)"
+
+# Download default model (base.en — good speed/quality balance)
+RUN cd whisper.cpp && \
+    bash models/download-ggml-model.sh base.en
+
+# ── Stage 2: Runtime ─────────────────────────────────────────────
+FROM docker.io/nvidia/cuda:12.6.3-runtime-ubuntu22.04
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy built binaries
+COPY --from=builder /build/whisper.cpp/build/bin/whisper-server /usr/local/bin/
+COPY --from=builder /build/whisper.cpp/build/bin/whisper-cli /usr/local/bin/
+
+# Copy default model
+COPY --from=builder /build/whisper.cpp/models/ggml-base.en.bin /models/ggml-base.en.bin
+
+# NVIDIA environment
+ENV NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=compute,utility
+
+EXPOSE 9000
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -sf http://localhost:9000/health || exit 1
+
+# Default: run server with base.en model on port 9000
+ENTRYPOINT ["whisper-server", \
+    "--model", "/models/ggml-base.en.bin", \
+    "--host", "0.0.0.0", \
+    "--port", "9000"]
