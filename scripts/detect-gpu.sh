@@ -60,6 +60,75 @@ classify_gpu() {
     esac
 }
 
+# ── NVIDIA GPU classification ─────────────────────────────────────
+# Uses nvidia-smi to get accurate GPU name and VRAM.
+# Returns: "dgpu:<class>" where class is datacenter, consumer-high, consumer-mid, consumer-entry
+classify_nvidia_gpu() {
+    local gpu_name="$1"
+    case "$gpu_name" in
+        *A100*|*H100*|*H200*|*L40*|*L4\ *|*Tesla*|*V100*)
+            echo "dgpu:nvidia-datacenter"
+            ;;
+        *RTX\ 3090*|*RTX\ 4090*|*RTX\ 5090*|*RTX\ 4080*|*RTX\ 5080*|*RTX\ 3080\ Ti*)
+            echo "dgpu:nvidia-high"
+            ;;
+        *RTX\ 30[67]0*|*RTX\ 40[67]0*|*RTX\ 50[67]0*|*RTX\ 20[78]0*|*RTX\ 3080*)
+            echo "dgpu:nvidia-mid"
+            ;;
+        *)
+            echo "dgpu:nvidia-entry"
+            ;;
+    esac
+}
+
+# ── Detect NVIDIA GPU via nvidia-smi ──────────────────────────────
+detect_nvidia_gpu() {
+    command -v nvidia-smi &>/dev/null || return 1
+
+    local csv
+    csv=$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null) || return 1
+    [[ -n "$csv" ]] || return 1
+
+    # Take the first GPU (strongest is usually index 0)
+    local line
+    line=$(echo "$csv" | head -1)
+    local gpu_name vram_mb
+    gpu_name=$(echo "$line" | cut -d, -f1 | xargs)
+    vram_mb=$(echo "$line" | cut -d, -f2 | xargs)
+
+    # Find the render node for NVIDIA
+    local nvidia_render=""
+    for card_dir in /sys/class/drm/card[0-9]*; do
+        [[ -d "$card_dir/device" ]] || continue
+        local vendor
+        vendor=$(cat "$card_dir/device/vendor" 2>/dev/null)
+        if [[ "$vendor" == "0x10de" ]]; then
+            local card_name card_num
+            card_name=$(basename "$card_dir")
+            card_num="${card_name#card}"
+            nvidia_render="/dev/dri/renderD$((128 + card_num))"
+            break
+        fi
+    done
+
+    local class
+    class=$(classify_nvidia_gpu "$gpu_name")
+
+    # Export results
+    export LLM_ARC_GPU_VENDOR="nvidia"
+    export LLM_ARC_GPU_TYPE="dgpu"
+    export LLM_ARC_GPU_CLASS="$class"
+    export LLM_ARC_GPU_DEVICE="nvidia"
+    export LLM_ARC_GPU_RENDER_NODE="${nvidia_render:-/dev/nvidia0}"
+    export LLM_ARC_GPU_CARD_NODE="${nvidia_render:-/dev/nvidia0}"
+    export LLM_ARC_GPU_VRAM_MB="$vram_mb"
+    export LLM_ARC_GPU_NAME="NVIDIA $gpu_name"
+    export LLM_ARC_GPU_BACKEND="cuda"
+    export LLM_ARC_GPU_RECOMMENDED_MODELS=$(recommend_models "$vram_mb")
+
+    return 0
+}
+
 # ── Estimate VRAM based on GPU class ─────────────────────────────
 estimate_vram_mb() {
     local class="$1"
@@ -108,6 +177,7 @@ recommend_backend() {
         dgpu:arc-a-series) echo "vulkan" ;; # Vulkan 40-100% faster on dGPU
         dgpu:arc-b-series) echo "vulkan" ;; # Vulkan preferred for Battlemage
         dgpu:arc-pro)      echo "ipex"   ;; # Pro series: IPEX is well-tested
+        dgpu:nvidia-*)     echo "cuda"   ;; # NVIDIA always uses CUDA
         *)                 echo "ipex"   ;; # fallback
     esac
 }
@@ -212,14 +282,16 @@ detect_gpu() {
     export LLM_ARC_GPU_NAME="$best_name"
     export LLM_ARC_GPU_BACKEND="$backend"
     export LLM_ARC_GPU_RECOMMENDED_MODELS="$models"
+    export LLM_ARC_GPU_VENDOR="intel"
 
     return 0
 }
 
 # ── Output formatting ────────────────────────────────────────────
 print_results() {
-    log_step "Intel GPU Detection Results"
+    log_step "GPU Detection Results"
     echo ""
+    printf "  %-22s %s\n" "Vendor:"       "$LLM_ARC_GPU_VENDOR"
     printf "  %-22s %s\n" "GPU Name:"     "$LLM_ARC_GPU_NAME"
     printf "  %-22s %s\n" "Type:"          "$LLM_ARC_GPU_TYPE ($LLM_ARC_GPU_CLASS)"
     printf "  %-22s %s\n" "Device ID:"     "$LLM_ARC_GPU_DEVICE"
@@ -231,7 +303,13 @@ print_results() {
     echo ""
 
     # Check device accessibility
-    if [[ -c "$LLM_ARC_GPU_RENDER_NODE" ]] && [[ -r "$LLM_ARC_GPU_RENDER_NODE" ]]; then
+    if [[ "$LLM_ARC_GPU_VENDOR" == "nvidia" ]]; then
+        if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null; then
+            log_ok "NVIDIA GPU accessible via nvidia-smi"
+        else
+            log_warn "nvidia-smi not working — check NVIDIA driver"
+        fi
+    elif [[ -c "$LLM_ARC_GPU_RENDER_NODE" ]] && [[ -r "$LLM_ARC_GPU_RENDER_NODE" ]]; then
         log_ok "Render node $LLM_ARC_GPU_RENDER_NODE is accessible"
     else
         log_warn "Render node $LLM_ARC_GPU_RENDER_NODE not accessible (check render/video group)"
@@ -239,6 +317,7 @@ print_results() {
 }
 
 print_env() {
+    echo "export LLM_ARC_GPU_VENDOR=\"$LLM_ARC_GPU_VENDOR\""
     echo "export LLM_ARC_GPU_TYPE=\"$LLM_ARC_GPU_TYPE\""
     echo "export LLM_ARC_GPU_CLASS=\"$LLM_ARC_GPU_CLASS\""
     echo "export LLM_ARC_GPU_DEVICE=\"$LLM_ARC_GPU_DEVICE\""
@@ -261,8 +340,12 @@ save_config() {
 # ── Entry point ──────────────────────────────────────────────────
 if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     # Running as a script (not sourced)
-    if ! detect_gpu; then
-        exit 1
+    # Try NVIDIA first (preferred over Intel iGPU if both present)
+    if ! detect_nvidia_gpu 2>/dev/null; then
+        if ! detect_gpu; then
+            log_error "No supported GPU detected (checked Intel and NVIDIA)"
+            exit 1
+        fi
     fi
 
     case "${1:-}" in
@@ -279,5 +362,7 @@ if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
     esac
 else
     # Being sourced — detect silently and export vars
-    detect_gpu || log_warn "GPU detection failed"
+    if ! detect_nvidia_gpu 2>/dev/null; then
+        detect_gpu || log_warn "GPU detection failed"
+    fi
 fi
