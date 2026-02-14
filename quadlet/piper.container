@@ -1,0 +1,26 @@
+[Unit]
+Description=Piper Text-to-Speech (CPU, Wyoming protocol)
+After=network-online.target
+
+[Container]
+Image=docker.io/rhasspy/wyoming-piper:latest
+ContainerName=piper
+Pod=ai-stack.pod
+
+# No GPU needed — Piper is faster-than-realtime on CPU
+# This avoids GPU contention with Ollama and Whisper
+
+# Voice model cache
+Volume=%h/.local/share/ai-models/piper:/data:Z
+
+# Wyoming protocol on port 5002
+# Voice configurable via LLM_ARC_PIPER_VOICE env var
+Exec=--voice en_US-amy-medium --uri tcp://0.0.0.0:5002
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

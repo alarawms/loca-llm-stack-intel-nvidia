@@ -1,0 +1,41 @@
+[Unit]
+Description=Ollama LLM Server (Intel Arc GPU)
+After=network-online.target
+
+[Container]
+# Default to IPEX-LLM image; switch to ollama-vulkan:latest for discrete Arc GPUs
+Image=localhost/ollama-ipex:latest
+ContainerName=ollama
+Pod=ai-stack.pod
+
+# Intel GPU passthrough
+AddDevice=/dev/dri
+GroupAdd=keep-groups
+
+# Persistent model storage
+Volume=%h/.local/share/ai-models/ollama:/root/.ollama:Z
+
+# Persistent SYCL kernel cache (speeds up subsequent starts)
+Volume=%h/.local/share/ai-models/sycl-cache:/root/.cache:Z
+
+# IPEX-LLM / SYCL environment
+Environment=ZES_ENABLE_SYSMAN=1
+Environment=SYCL_CACHE_PERSISTENT=1
+Environment=SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1
+Environment=BIGDL_LLM_XMX_DISABLED=0
+Environment=OLLAMA_HOST=0.0.0.0
+Environment=OLLAMA_ORIGINS=*
+Environment=OLLAMA_NUM_GPU=999
+
+# Health check
+HealthCmd=curl -sf http://localhost:11434/api/tags || exit 1
+HealthInterval=30s
+HealthStartPeriod=120s
+
+[Service]
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=900
+
+[Install]
+WantedBy=default.target

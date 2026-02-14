@@ -1,0 +1,28 @@
+[Unit]
+Description=Open WebUI (Ollama Web Interface)
+After=ollama.service
+
+[Container]
+Image=ghcr.io/open-webui/open-webui:main
+ContainerName=openwebui
+Pod=ai-stack.pod
+
+# Persistent chat history and settings
+Volume=%h/.local/share/ai-models/openwebui:/app/backend/data:Z
+
+# Connect to Ollama in the same pod via localhost
+Environment=OLLAMA_BASE_URL=http://localhost:11434
+Environment=WEBUI_AUTH=false
+
+# Health check
+HealthCmd=curl -sf http://localhost:8080/health || exit 1
+HealthInterval=30s
+HealthStartPeriod=60s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

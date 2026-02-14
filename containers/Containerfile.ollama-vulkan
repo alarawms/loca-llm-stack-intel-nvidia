@@ -1,0 +1,20 @@
+# Containerfile.ollama-vulkan — Stock Ollama with Vulkan backend
+#
+# Uses upstream Ollama with experimental Vulkan support (v0.12.6+).
+# Best for: Intel Arc A-series and B-series discrete GPUs.
+# Vulkan outperforms SYCL by 40-100% on discrete Arc GPUs.
+#
+# Build:
+#   podman build -t ollama-vulkan:latest -f containers/Containerfile.ollama-vulkan .
+
+FROM docker.io/ollama/ollama:latest
+
+ENV OLLAMA_HOST=0.0.0.0:11434 \
+    OLLAMA_NUM_GPU=999 \
+    OLLAMA_ORIGINS=* \
+    OLLAMA_INTEL_GPU=1
+
+EXPOSE 11434
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD ollama list >/dev/null 2>&1 || exit 1

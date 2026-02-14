@@ -1,0 +1,33 @@
+[Unit]
+Description=Whisper Speech-to-Text Server (Intel Arc GPU / SYCL)
+After=network-online.target
+
+[Container]
+Image=localhost/whisper-sycl:latest
+ContainerName=whisper
+Pod=ai-stack.pod
+
+# Share GPU with Ollama
+AddDevice=/dev/dri
+GroupAdd=keep-groups
+
+# Model storage (mount additional models here)
+Volume=%h/.local/share/ai-models/whisper:/models:z
+
+# Intel GPU environment
+Environment=ONEAPI_DEVICE_SELECTOR=level_zero:gpu
+Environment=ZES_ENABLE_SYSMAN=1
+Environment=SYCL_CACHE_PERSISTENT=1
+
+# Health check
+HealthCmd=curl -sf http://localhost:9000/health || exit 1
+HealthInterval=30s
+HealthStartPeriod=60s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=600
+
+[Install]
+WantedBy=default.target

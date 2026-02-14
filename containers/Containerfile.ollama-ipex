@@ -1,0 +1,32 @@
+# Containerfile.ollama-ipex — Ollama with IPEX-LLM SYCL backend for Intel GPUs
+#
+# This wraps Intel's IPEX-LLM inference image with an Ollama entrypoint.
+# Best for: Intel iGPU (Arrow Lake, Meteor Lake) and Arc Pro series.
+#
+# Build:
+#   podman build -t ollama-ipex:latest -f containers/Containerfile.ollama-ipex .
+
+FROM docker.io/intelanalytics/ipex-llm-inference-cpp-xpu:latest
+
+# Intel GPU environment
+ENV ZES_ENABLE_SYSMAN=1 \
+    USE_XETLA=OFF \
+    SYCL_CACHE_PERSISTENT=1 \
+    SYCL_PI_LEVEL_ZERO_USE_IMMEDIATE_COMMANDLISTS=1 \
+    BIGDL_LLM_XMX_DISABLED=0 \
+    OLLAMA_HOST=0.0.0.0:11434 \
+    OLLAMA_NUM_GPU=999 \
+    OLLAMA_ORIGINS=*
+
+# Initialize the IPEX-LLM Ollama backend
+RUN mkdir -p /llm/ollama && \
+    cd /llm/ollama && \
+    init-ollama
+
+WORKDIR /llm/ollama
+EXPOSE 11434
+
+HEALTHCHECK --interval=30s --timeout=10s --start-period=120s --retries=3 \
+    CMD curl -sf http://localhost:11434/api/tags || exit 1
+
+ENTRYPOINT ["./ollama", "serve"]
