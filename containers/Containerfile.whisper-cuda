@@ -24,7 +24,9 @@ RUN git clone --depth 1 https://github.com/ggml-org/whisper.cpp.git && \
     cd whisper.cpp && \
     cmake -B build \
         -DGGML_CUDA=ON \
-        -DCMAKE_BUILD_TYPE=Release && \
+        -DCMAKE_BUILD_TYPE=Release \
+        -DCMAKE_EXE_LINKER_FLAGS="-L/usr/local/cuda/lib64/stubs" \
+        -DCMAKE_SHARED_LINKER_FLAGS="-L/usr/local/cuda/lib64/stubs" && \
     JOBS=$(nproc) && [ "$JOBS" -gt 4 ] && JOBS=4; \
     cmake --build build --config Release -j"$JOBS"
 
