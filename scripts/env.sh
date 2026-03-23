@@ -22,7 +22,7 @@ export LLM_ARC_QUADLET_DIR="${HOME}/.config/containers/systemd"
 
 # ── Service ports (localhost only) ───────────────────────────────
 export LLM_ARC_OLLAMA_PORT="${LLM_ARC_OLLAMA_PORT:-11434}"
-export LLM_ARC_WHISPER_PORT="${LLM_ARC_WHISPER_PORT:-9000}"
+export LLM_ARC_WHISPER_PORT="${LLM_ARC_WHISPER_PORT:-9100}"
 export LLM_ARC_PIPER_PORT="${LLM_ARC_PIPER_PORT:-5002}"
 export LLM_ARC_WEBUI_PORT="${LLM_ARC_WEBUI_PORT:-8080}"
 

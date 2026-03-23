@@ -28,7 +28,7 @@ Environment=OLLAMA_ORIGINS=*
 Environment=OLLAMA_NUM_GPU=999
 
 # Health check
-HealthCmd=curl -sf http://localhost:11434/api/tags || exit 1
+HealthCmd=ollama list || exit 1
 HealthInterval=30s
 HealthStartPeriod=120s
 

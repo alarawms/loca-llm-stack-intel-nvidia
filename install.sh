@@ -148,8 +148,8 @@ for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
                     -e '/BIGDL_LLM_XMX_DISABLED/d' \
                     -e '/Volume=.*sycl-cache/d' \
                     "$f" > "${LLM_ARC_QUADLET_DIR}/${local_basename}"
-                # Add NVIDIA env vars
-                sed -i '/OLLAMA_NUM_GPU/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility' \
+                # Add NVIDIA env vars and disable SELinux labeling for GPU access
+                sed -i '/OLLAMA_NUM_GPU/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility\nSecurityLabelDisable=true' \
                     "${LLM_ARC_QUADLET_DIR}/${local_basename}"
                 ;;
             whisper.container)
@@ -161,8 +161,8 @@ for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
                     -e '/ZES_ENABLE_SYSMAN/d' \
                     -e '/SYCL_CACHE_PERSISTENT/d' \
                     "$f" > "${LLM_ARC_QUADLET_DIR}/${local_basename}"
-                # Add NVIDIA env vars
-                sed -i '/^\[Container\]/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility' \
+                # Add NVIDIA env vars and disable SELinux labeling for GPU access
+                sed -i '/^\[Container\]/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility\nSecurityLabelDisable=true' \
                     "${LLM_ARC_QUADLET_DIR}/${local_basename}"
                 ;;
             *)

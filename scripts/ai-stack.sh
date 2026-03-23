@@ -47,27 +47,40 @@ cmd_install() {
     # 3. Build container images
     log_info "Building container images..."
 
-    if [[ "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
-        log_info "Building Vulkan Ollama image (recommended for $LLM_ARC_GPU_CLASS)..."
-        podman build -t ollama-vulkan:latest \
-            -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-vulkan" \
-            "${LLM_ARC_DIR}"
-        # Update quadlet to use vulkan image
-        log_info "Using Vulkan backend for Ollama"
-    else
-        log_info "Building IPEX-LLM Ollama image (recommended for $LLM_ARC_GPU_CLASS)..."
-        podman build -t ollama-ipex:latest \
-            -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-ipex" \
-            "${LLM_ARC_DIR}"
-    fi
+    case "${LLM_ARC_GPU_VENDOR:-intel}" in
+        nvidia)
+            log_info "NVIDIA GPU detected — using stock Ollama image (has CUDA)"
+            podman pull "$LLM_ARC_OLLAMA_CUDA_IMAGE"
+            log_ok "Ollama CUDA image pulled"
 
-    # Build whisper SYCL image
-    if [[ -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" ]]; then
-        log_info "Building Whisper SYCL image..."
-        podman build -t whisper-sycl:latest \
-            -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" \
-            "${LLM_ARC_DIR}"
-    fi
+            log_info "Building Whisper CUDA image..."
+            podman build -t whisper-cuda:latest \
+                -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-cuda" \
+                "${LLM_ARC_DIR}"
+            log_ok "whisper-cuda:latest built"
+            ;;
+        *)
+            if [[ "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
+                log_info "Building Vulkan Ollama image (recommended for $LLM_ARC_GPU_CLASS)..."
+                podman build -t ollama-vulkan:latest \
+                    -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-vulkan" \
+                    "${LLM_ARC_DIR}"
+                log_info "Using Vulkan backend for Ollama"
+            else
+                log_info "Building IPEX-LLM Ollama image (recommended for $LLM_ARC_GPU_CLASS)..."
+                podman build -t ollama-ipex:latest \
+                    -f "${LLM_ARC_CONTAINERS}/Containerfile.ollama-ipex" \
+                    "${LLM_ARC_DIR}"
+            fi
+
+            if [[ -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" ]]; then
+                log_info "Building Whisper SYCL image..."
+                podman build -t whisper-sycl:latest \
+                    -f "${LLM_ARC_CONTAINERS}/Containerfile.whisper-sycl" \
+                    "${LLM_ARC_DIR}"
+            fi
+            ;;
+    esac
 
     # 4. Copy Quadlet files to systemd directory
     log_info "Installing Quadlet unit files to ${LLM_ARC_QUADLET_DIR}/"
@@ -78,8 +91,42 @@ cmd_install() {
         local basename
         basename=$(basename "$f")
 
-        # If using vulkan backend, rewrite the ollama image reference
-        if [[ "$basename" == "ollama.container" && "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
+        if [[ "${LLM_ARC_GPU_VENDOR:-intel}" == "nvidia" ]]; then
+            # NVIDIA: rewrite ollama and whisper container units
+            case "$basename" in
+                ollama.container)
+                    sed -e 's|Image=localhost/ollama-ipex:latest|Image=docker.io/ollama/ollama:latest|' \
+                        -e 's|Description=.*|Description=Ollama LLM Server (NVIDIA CUDA GPU)|' \
+                        -e 's|AddDevice=/dev/dri.*|AddDevice=nvidia.com/gpu=all|' \
+                        -e '/GroupAdd=keep-groups/d' \
+                        -e '/SYCL_CACHE_PERSISTENT/d' \
+                        -e '/SYCL_PI_LEVEL_ZERO/d' \
+                        -e '/ZES_ENABLE_SYSMAN/d' \
+                        -e '/BIGDL_LLM_XMX_DISABLED/d' \
+                        -e '/Volume=.*sycl-cache/d' \
+                        "$f" > "${LLM_ARC_QUADLET_DIR}/${basename}"
+                    # Add NVIDIA env vars and disable SELinux labeling for GPU access
+                    sed -i '/OLLAMA_NUM_GPU/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility\nSecurityLabelDisable=true' \
+                        "${LLM_ARC_QUADLET_DIR}/${basename}"
+                    ;;
+                whisper.container)
+                    sed -e 's|Image=localhost/whisper-sycl:latest|Image=localhost/whisper-cuda:latest|' \
+                        -e 's|Description=.*|Description=Whisper Speech-to-Text Server (NVIDIA CUDA GPU)|' \
+                        -e 's|AddDevice=/dev/dri.*|AddDevice=nvidia.com/gpu=all|' \
+                        -e '/GroupAdd=keep-groups/d' \
+                        -e '/ONEAPI_DEVICE_SELECTOR/d' \
+                        -e '/ZES_ENABLE_SYSMAN/d' \
+                        -e '/SYCL_CACHE_PERSISTENT/d' \
+                        "$f" > "${LLM_ARC_QUADLET_DIR}/${basename}"
+                    # Add NVIDIA env vars and disable SELinux labeling for GPU access
+                    sed -i '/^\[Container\]/a Environment=NVIDIA_VISIBLE_DEVICES=all\nEnvironment=NVIDIA_DRIVER_CAPABILITIES=compute,utility\nSecurityLabelDisable=true' \
+                        "${LLM_ARC_QUADLET_DIR}/${basename}"
+                    ;;
+                *)
+                    cp "$f" "${LLM_ARC_QUADLET_DIR}/${basename}"
+                    ;;
+            esac
+        elif [[ "$basename" == "ollama.container" && "$LLM_ARC_GPU_BACKEND" == "vulkan" ]]; then
             sed 's|Image=localhost/ollama-ipex:latest|Image=localhost/ollama-vulkan:latest|' \
                 "$f" > "${LLM_ARC_QUADLET_DIR}/${basename}"
         else
@@ -208,10 +255,21 @@ cmd_logs() {
 cmd_update() {
     log_step "Updating AI stack..."
 
-    # Pull latest base images
+    # Load GPU config
+    [[ -f "$gpu_config" ]] && source "$gpu_config"
+
+    # Pull latest base images (vendor-aware)
     log_info "Pulling latest base images..."
-    podman pull docker.io/intelanalytics/ipex-llm-inference-cpp-xpu:latest 2>/dev/null || true
-    podman pull docker.io/ollama/ollama:latest 2>/dev/null || true
+    case "${LLM_ARC_GPU_VENDOR:-intel}" in
+        nvidia)
+            podman pull "$LLM_ARC_OLLAMA_CUDA_IMAGE" 2>/dev/null || true
+            podman pull docker.io/nvidia/cuda:12.6.3-runtime-ubuntu22.04 2>/dev/null || true
+            ;;
+        *)
+            podman pull docker.io/intelanalytics/ipex-llm-inference-cpp-xpu:latest 2>/dev/null || true
+            podman pull docker.io/ollama/ollama:latest 2>/dev/null || true
+            ;;
+    esac
     podman pull docker.io/rhasspy/wyoming-piper:latest 2>/dev/null || true
     podman pull ghcr.io/open-webui/open-webui:main 2>/dev/null || true
 

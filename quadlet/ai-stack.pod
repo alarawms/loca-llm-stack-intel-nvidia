@@ -6,7 +6,7 @@ PodName=ai-stack
 # Ports bind to all interfaces (0.0.0.0) for Tailscale access
 # WARNING: Also exposes on LAN — use firewall rules to restrict if needed
 PublishPort=0.0.0.0:11434:11434
-PublishPort=0.0.0.0:9000:9000
+PublishPort=0.0.0.0:9100:9000
 PublishPort=0.0.0.0:5002:5002
 PublishPort=0.0.0.0:8080:8080
 
