@@ -19,10 +19,13 @@ Environment=ONEAPI_DEVICE_SELECTOR=level_zero:gpu
 Environment=ZES_ENABLE_SYSMAN=1
 Environment=SYCL_CACHE_PERSISTENT=1
 
+# Override default model to large-v3 (multilingual: Arabic + English)
+Exec=--model /models/ggml-large-v3.bin --host 0.0.0.0 --port 9000
+
 # Health check
 HealthCmd=curl -sf http://localhost:9000/health || exit 1
 HealthInterval=30s
-HealthStartPeriod=60s
+HealthStartPeriod=120s
 
 [Service]
 Restart=on-failure
