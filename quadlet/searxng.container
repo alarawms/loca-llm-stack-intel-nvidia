@@ -1,0 +1,29 @@
+[Unit]
+Description=SearXNG Metasearch Engine (Web Search for AI)
+After=network-online.target
+
+[Container]
+Image=docker.io/searxng/searxng:latest
+ContainerName=searxng
+Pod=ai-stack.pod
+
+# No GPU needed — SearXNG is a lightweight web app
+
+# Use port 8888 internally (8080 is taken by Open WebUI in the same pod)
+Environment=SEARXNG_PORT=8888
+
+# Persistent config (settings.yml with limiter disabled for API use)
+Volume=%h/.local/share/ai-models/searxng:/etc/searxng:Z
+
+# Health check
+HealthCmd=curl -sf http://localhost:8888/healthz || exit 1
+HealthInterval=30s
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

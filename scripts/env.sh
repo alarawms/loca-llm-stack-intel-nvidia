@@ -25,6 +25,7 @@ export LLM_ARC_OLLAMA_PORT="${LLM_ARC_OLLAMA_PORT:-11434}"
 export LLM_ARC_WHISPER_PORT="${LLM_ARC_WHISPER_PORT:-9100}"
 export LLM_ARC_PIPER_PORT="${LLM_ARC_PIPER_PORT:-5002}"
 export LLM_ARC_WEBUI_PORT="${LLM_ARC_WEBUI_PORT:-8080}"
+export LLM_ARC_SEARXNG_PORT="${LLM_ARC_SEARXNG_PORT:-8888}"
 
 # ── Pod name ─────────────────────────────────────────────────────
 export LLM_ARC_POD="ai-stack"
@@ -35,6 +36,7 @@ export LLM_ARC_OLLAMA_VULKAN_IMAGE="docker.io/ollama/ollama:latest"
 export LLM_ARC_WHISPER_IMAGE="localhost/whisper-sycl:latest"
 export LLM_ARC_PIPER_IMAGE="docker.io/rhasspy/wyoming-piper:latest"
 export LLM_ARC_WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
+export LLM_ARC_SEARXNG_IMAGE="docker.io/searxng/searxng:latest"
 
 # ── NVIDIA container images ───────────────────────────────────────
 export LLM_ARC_OLLAMA_CUDA_IMAGE="docker.io/ollama/ollama:latest"

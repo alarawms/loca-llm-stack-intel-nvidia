@@ -1,5 +1,5 @@
 [Unit]
-Description=Local AI Stack (LLM + STT + TTS + WebUI)
+Description=Local AI Stack (LLM + STT + TTS + WebUI + Search)
 
 [Pod]
 PodName=ai-stack
@@ -9,6 +9,7 @@ PublishPort=0.0.0.0:11434:11434
 PublishPort=0.0.0.0:9100:9000
 PublishPort=0.0.0.0:5002:5002
 PublishPort=0.0.0.0:8080:8080
+PublishPort=0.0.0.0:8888:8888
 
 [Install]
 WantedBy=default.target

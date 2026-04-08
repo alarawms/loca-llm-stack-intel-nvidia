@@ -20,6 +20,7 @@ SERVICES=(
     "ollama.service"
     "whisper.service"
     "piper.service"
+    "searxng.service"
     "openwebui.service"
 )
 
@@ -229,6 +230,10 @@ cmd_status() {
     if curl -sf "http://127.0.0.1:${LLM_ARC_WHISPER_PORT}/" >/dev/null 2>&1; then
         log_ok "Whisper STT responding"
     fi
+
+    if curl -sf "http://127.0.0.1:${LLM_ARC_SEARXNG_PORT}/healthz" >/dev/null 2>&1; then
+        log_ok "SearXNG search responding"
+    fi
 }
 
 cmd_logs() {
@@ -240,12 +245,12 @@ cmd_logs() {
     else
         # Map short names to service names
         case "$svc" in
-            ollama|whisper|piper|openwebui)
+            ollama|whisper|piper|searxng|openwebui)
                 journalctl --user -u "${svc}.service" -f --no-hostname
                 ;;
             *)
                 log_error "Unknown service: $svc"
-                log_info  "Available: ollama, whisper, piper, openwebui"
+                log_info  "Available: ollama, whisper, piper, searxng, openwebui"
                 exit 1
                 ;;
         esac
@@ -271,6 +276,7 @@ cmd_update() {
             ;;
     esac
     podman pull docker.io/rhasspy/wyoming-piper:latest 2>/dev/null || true
+    podman pull docker.io/searxng/searxng:latest 2>/dev/null || true
     podman pull ghcr.io/open-webui/open-webui:main 2>/dev/null || true
 
     # Rebuild custom images
@@ -350,7 +356,7 @@ cmd_uninstall() {
         basename=$(basename "$f")
         # Only remove files we installed
         case "$basename" in
-            ai-stack.pod|ollama.container|whisper.container|piper.container|openwebui.container)
+            ai-stack.pod|ollama.container|whisper.container|piper.container|searxng.container|openwebui.container)
                 rm "$f"
                 log_ok "Removed $basename"
                 ;;
@@ -383,7 +389,7 @@ case "${1:-help}" in
         echo "  stop       Stop all services"
         echo "  restart    Restart all services"
         echo "  status     Show health/status of all services"
-        echo "  logs [svc] Tail logs (ollama, whisper, piper, openwebui)"
+        echo "  logs [svc] Tail logs (ollama, whisper, piper, searxng, openwebui)"
         echo "  update     Pull latest images, rebuild, restart"
         echo "  benchmark  Run a quick LLM speed test"
         echo "  uninstall  Remove Quadlet files (preserves models)"
