@@ -4,9 +4,9 @@ Description=Dify AI Platform Stack (Agents + RAG + Qdrant)
 [Pod]
 PodName=dify-stack
 # Dify web UI (nginx reverse proxy)
-PublishPort=0.0.0.0:3000:80
+PublishPort=3000:80
 # Qdrant REST API — also used by Open WebUI in the ai-stack pod
-PublishPort=0.0.0.0:6333:6333
+PublishPort=6333:6333
 
 [Install]
 WantedBy=default.target

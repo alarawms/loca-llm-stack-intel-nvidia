@@ -3,15 +3,15 @@ Description=Local AI Stack (LLM + STT + TTS + WebUI + Search)
 
 [Pod]
 PodName=ai-stack
-# Ports bind to all interfaces (0.0.0.0) for Tailscale access
-# WARNING: Also exposes on LAN — use firewall rules to restrict if needed
-PublishPort=0.0.0.0:11434:11434
-PublishPort=0.0.0.0:9100:9000
-PublishPort=0.0.0.0:5002:5002
-PublishPort=0.0.0.0:8080:8080
-PublishPort=0.0.0.0:8888:8888
-PublishPort=0.0.0.0:18789:18789
-PublishPort=0.0.0.0:18790:18790
+# No explicit host IP — pasta handles dual-stack (IPv4 + IPv6) automatically
+# Services still accessible on all interfaces (LAN, Tailscale, localhost)
+PublishPort=11434:11434
+PublishPort=9100:9000
+PublishPort=5002:5002
+PublishPort=8080:8080
+PublishPort=8888:8888
+PublishPort=18789:18789
+PublishPort=18790:18790
 
 [Install]
 WantedBy=default.target
