@@ -11,6 +11,9 @@ Pod=dify-stack.pod
 Environment=CONSOLE_API_URL=
 Environment=APP_API_URL=
 Environment=NEXT_TELEMETRY_DISABLED=1
+# Without this Next.js binds to the pod IP only, making it unreachable via
+# nginx's 127.0.0.1 upstream (all containers share the pod network namespace)
+Environment=HOSTNAME=0.0.0.0
 
 [Service]
 Restart=on-failure

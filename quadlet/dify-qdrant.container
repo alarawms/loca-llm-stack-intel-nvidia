@@ -9,7 +9,8 @@ Pod=dify-stack.pod
 
 Volume=%h/.local/share/ai-models/qdrant:/qdrant/storage:Z
 
-HealthCmd=wget -qO /dev/null http://localhost:6333/ || exit 1
+# qdrant image has bash but no curl/wget/nc — use /dev/tcp TCP check
+HealthCmd=bash -c 'echo > /dev/tcp/localhost/6333' || exit 1
 HealthInterval=30s
 HealthStartPeriod=20s
 
