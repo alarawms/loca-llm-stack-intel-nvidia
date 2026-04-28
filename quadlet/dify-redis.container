@@ -1,0 +1,26 @@
+[Unit]
+Description=Dify Redis Cache and Queue
+After=network-online.target
+
+[Container]
+Image=docker.io/redis:7-alpine
+ContainerName=dify-redis
+Pod=dify-stack.pod
+
+# REDIS_PASSWORD comes from the generated dify.env
+EnvironmentFile=%h/.local/share/ai-models/dify/dify.env
+Exec=sh -c 'redis-server --requirepass "$REDIS_PASSWORD" --save 60 1 --loglevel warning'
+
+Volume=%h/.local/share/ai-models/dify/redis:/data:Z
+
+HealthCmd=sh -c 'redis-cli -a "$REDIS_PASSWORD" ping | grep -q PONG'
+HealthInterval=30s
+HealthStartPeriod=20s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target

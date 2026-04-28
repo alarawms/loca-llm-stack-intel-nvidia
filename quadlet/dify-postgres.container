@@ -1,0 +1,30 @@
+[Unit]
+Description=Dify PostgreSQL Database
+After=network-online.target
+
+[Container]
+Image=docker.io/postgres:15-alpine
+ContainerName=dify-postgres
+Pod=dify-stack.pod
+
+Environment=POSTGRES_USER=dify
+Environment=POSTGRES_DB=dify
+Environment=PGDATA=/var/lib/postgresql/data/pgdata
+
+# DB_PASSWORD comes from the generated dify.env
+EnvironmentFile=%h/.local/share/ai-models/dify/dify.env
+Environment=POSTGRES_PASSWORD=${DB_PASSWORD}
+
+Volume=%h/.local/share/ai-models/dify/postgres:/var/lib/postgresql/data:Z
+
+HealthCmd=pg_isready -U dify
+HealthInterval=30s
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target

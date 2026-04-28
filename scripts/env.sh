@@ -26,9 +26,12 @@ export LLM_ARC_WHISPER_PORT="${LLM_ARC_WHISPER_PORT:-9100}"
 export LLM_ARC_PIPER_PORT="${LLM_ARC_PIPER_PORT:-5002}"
 export LLM_ARC_WEBUI_PORT="${LLM_ARC_WEBUI_PORT:-8080}"
 export LLM_ARC_SEARXNG_PORT="${LLM_ARC_SEARXNG_PORT:-8888}"
+export LLM_ARC_DIFY_PORT="${LLM_ARC_DIFY_PORT:-3000}"
+export LLM_ARC_QDRANT_PORT="${LLM_ARC_QDRANT_PORT:-6333}"
 
-# ── Pod name ─────────────────────────────────────────────────────
+# ── Pod names ────────────────────────────────────────────────────
 export LLM_ARC_POD="ai-stack"
+export LLM_ARC_DIFY_POD="dify-stack"
 
 # ── Container image names ────────────────────────────────────────
 export LLM_ARC_OLLAMA_IPEX_IMAGE="localhost/ollama-ipex:latest"
@@ -37,6 +40,12 @@ export LLM_ARC_WHISPER_IMAGE="localhost/whisper-sycl:latest"
 export LLM_ARC_PIPER_IMAGE="docker.io/rhasspy/wyoming-piper:latest"
 export LLM_ARC_WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
 export LLM_ARC_SEARXNG_IMAGE="docker.io/searxng/searxng:latest"
+
+# ── Dify + Qdrant images ─────────────────────────────────────────
+export LLM_ARC_QDRANT_IMAGE="docker.io/qdrant/qdrant:latest"
+export LLM_ARC_DIFY_API_IMAGE="docker.io/langgenius/dify-api:latest"
+export LLM_ARC_DIFY_WEB_IMAGE="docker.io/langgenius/dify-web:latest"
+export LLM_ARC_DIFY_SANDBOX_IMAGE="docker.io/langgenius/dify-sandbox:latest"
 
 # ── NVIDIA container images ───────────────────────────────────────
 export LLM_ARC_OLLAMA_CUDA_IMAGE="docker.io/ollama/ollama:latest"

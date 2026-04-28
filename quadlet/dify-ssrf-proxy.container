@@ -1,0 +1,18 @@
+[Unit]
+Description=Dify SSRF Proxy (Squid)
+After=network-online.target
+
+[Container]
+Image=docker.io/ubuntu/squid:latest
+ContainerName=dify-ssrf-proxy
+Pod=dify-stack.pod
+
+Volume=%h/.local/share/ai-models/dify/squid.conf:/etc/squid/squid.conf:Z,ro
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target

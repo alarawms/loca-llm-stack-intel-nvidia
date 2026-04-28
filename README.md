@@ -71,6 +71,8 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 
 ## Services
 
+**`ai-stack` pod** — always-on inference services
+
 | Service | Port | Description |
 |---------|------|-------------|
 | Ollama | `:11434` | LLM inference (GPU-accelerated) |
@@ -79,11 +81,19 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 | Open WebUI | `:8080` | Web chat interface |
 | SearXNG | `:8888` | Metasearch engine (web search for AI RAG) |
 
-Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (`0.0.0.0`) for Tailscale access. Use firewall rules (firewalld/nftables) to restrict LAN access if needed.
+**`dify-stack` pod** — agentic platform (optional, install separately)
+
+| Service | Port | Description |
+|---------|------|-------------|
+| Dify UI | `:3000` | Agent builder, RAG pipelines, workflows |
+| Qdrant | `:6333` | Vector database (also usable by Open WebUI) |
+
+Ports bind to all interfaces (`0.0.0.0`) for Tailscale access. Use firewall rules (firewalld/nftables) to restrict LAN access if needed.
 
 ## Management
 
 ```bash
+# Core stack
 ./scripts/ai-stack.sh status       # Service health
 ./scripts/ai-stack.sh logs         # Pod logs (or: logs ollama)
 ./scripts/ai-stack.sh stop         # Stop everything
@@ -91,7 +101,23 @@ Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (
 ./scripts/ai-stack.sh restart      # Restart all services
 ./scripts/ai-stack.sh benchmark    # LLM speed test
 ./scripts/ai-stack.sh uninstall    # Remove Quadlet units (keeps models)
+
+# Dify + Qdrant (run once to install, then start/stop as needed)
+./scripts/dify-stack.sh install    # Pull images, generate secrets, install units
+./scripts/dify-stack.sh start      # Start Dify stack
+./scripts/dify-stack.sh status     # Health of all Dify services
+./scripts/dify-stack.sh logs api   # Tail a specific service log
+./scripts/dify-stack.sh uninstall  # Remove units (keeps data)
 ```
+
+### Connecting Dify to Ollama
+
+After `dify-stack.sh start`, open **http://localhost:3000** and create an admin account.
+
+Then: **Settings → Model Providers → Ollama**
+Set the endpoint to: `http://host.containers.internal:11434`
+
+Dify will discover all models already pulled in Ollama.
 
 ## Model Management
 

@@ -1,0 +1,25 @@
+[Unit]
+Description=Dify Code Execution Sandbox
+After=network-online.target
+
+[Container]
+Image=docker.io/langgenius/dify-sandbox:latest
+ContainerName=dify-sandbox
+Pod=dify-stack.pod
+
+EnvironmentFile=%h/.local/share/ai-models/dify/dify.env
+
+Environment=GIN_MODE=release
+Environment=WORKER_TIMEOUT=15
+Environment=ENABLE_NETWORK=true
+Environment=HTTP_PROXY=http://localhost:3128
+Environment=HTTPS_PROXY=http://localhost:3128
+Environment=SANDBOX_PORT=8194
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target

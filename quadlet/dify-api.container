@@ -1,0 +1,73 @@
+[Unit]
+Description=Dify API Server
+After=dify-postgres.service dify-redis.service
+
+[Container]
+Image=docker.io/langgenius/dify-api:latest
+ContainerName=dify-api
+Pod=dify-stack.pod
+
+# Secrets from generated dify.env
+EnvironmentFile=%h/.local/share/ai-models/dify/dify.env
+
+# Runtime mode
+Environment=MODE=api
+Environment=FLASK_DEBUG_MODE=false
+Environment=MIGRATION_ENABLED=true
+
+# Database (postgres in same pod → localhost)
+Environment=DB_USERNAME=dify
+Environment=DB_HOST=localhost
+Environment=DB_PORT=5432
+Environment=DB_DATABASE=dify
+
+# Redis (in same pod → localhost)
+Environment=REDIS_HOST=localhost
+Environment=REDIS_PORT=6379
+Environment=REDIS_USE_SSL=false
+Environment=REDIS_DB=0
+
+# CORS (allow all for local/Tailscale access)
+Environment=WEB_API_CORS_ALLOW_ORIGINS=*
+Environment=CONSOLE_CORS_ALLOW_ORIGINS=*
+
+# File storage
+Environment=STORAGE_TYPE=local
+Environment=STORAGE_LOCAL_PATH=/app/api/storage
+
+# Vector store → Qdrant in same pod
+Environment=VECTOR_STORE=qdrant
+Environment=QDRANT_URL=http://localhost:6333
+Environment=QDRANT_CLIENT_TIMEOUT=20
+Environment=QDRANT_GRPC_ENABLED=false
+Environment=QDRANT_GRPC_PORT=6334
+
+# Code sandbox (in same pod → localhost)
+Environment=CODE_EXECUTION_ENDPOINT=http://localhost:8194
+Environment=CODE_MAX_NUMBER=9223372036854775807
+Environment=CODE_MIN_NUMBER=-9223372036854775808
+Environment=CODE_MAX_STRING_LENGTH=80000
+Environment=CODE_MAX_OBJECT_ARRAY_LENGTH=30
+Environment=CODE_MAX_STRINGIFIED_OBJECT_LENGTH=80000
+Environment=TEMPLATE_TRANSFORM_MAX_LENGTH=80000
+
+# SSRF proxy (squid in same pod → localhost)
+Environment=SSRF_PROXY_HTTP_URL=http://localhost:3128
+Environment=SSRF_PROXY_HTTPS_URL=http://localhost:3128
+
+# Ollama — reaches ai-stack pod via published host port
+Environment=LOG_LEVEL=INFO
+
+Volume=%h/.local/share/ai-models/dify/storage:/app/api/storage:Z
+
+HealthCmd=curl -sf http://localhost:5001/health || exit 1
+HealthInterval=30s
+HealthStartPeriod=90s
+
+[Service]
+Restart=on-failure
+RestartSec=15
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

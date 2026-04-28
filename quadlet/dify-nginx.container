@@ -1,0 +1,22 @@
+[Unit]
+Description=Dify Nginx Reverse Proxy
+After=dify-api.service dify-web.service
+
+[Container]
+Image=docker.io/nginx:alpine
+ContainerName=dify-nginx
+Pod=dify-stack.pod
+
+Volume=%h/.local/share/ai-models/dify/nginx.conf:/etc/nginx/nginx.conf:Z,ro
+
+HealthCmd=curl -sf http://localhost:80 || exit 1
+HealthInterval=30s
+HealthStartPeriod=30s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=60
+
+[Install]
+WantedBy=default.target
