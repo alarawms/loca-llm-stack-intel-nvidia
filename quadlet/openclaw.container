@@ -1,0 +1,35 @@
+[Unit]
+Description=OpenClaw Personal AI Agent
+After=ollama.service
+
+[Container]
+Image=ghcr.io/openclaw/openclaw:latest
+ContainerName=openclaw
+Pod=ai-stack.pod
+
+# Persistent config and workspace (inside same volume, /home/node/.openclaw/workspace is a subdir)
+Volume=%h/.local/share/ai-models/openclaw/config:/home/node/.openclaw:Z
+# Plugin runtime dependencies (sandboxed tools)
+Volume=%h/.local/share/ai-models/openclaw/plugins:/var/lib/openclaw/plugin-runtime-deps:Z
+
+# Disable mDNS Bonjour — required for container networking
+Environment=OPENCLAW_DISABLE_BONJOUR=1
+
+# Secrets from generated openclaw.env (OPENCLAW_GATEWAY_TOKEN)
+EnvironmentFile=%h/.local/share/ai-models/openclaw/openclaw.env
+
+# After setup, configure Ollama in the UI:
+#   Settings → Model Providers → Ollama
+#   Endpoint: http://localhost:11434  (same pod — no host bridge needed)
+
+HealthCmd=curl -sf http://localhost:18789/ || exit 1
+HealthInterval=30s
+HealthStartPeriod=60s
+
+[Service]
+Restart=on-failure
+RestartSec=10
+TimeoutStartSec=120
+
+[Install]
+WantedBy=default.target
