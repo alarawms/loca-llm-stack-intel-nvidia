@@ -12,13 +12,16 @@ Technical reference for maintaining and extending the llm-arc stack.
     127.0.0.1:11434 │  ┌─────────┐  GPU  ┌──────────┐        │
    ─────────────────┤  │ Ollama  │◄─────►│ /dev/dri │        │
                     │  └─────────┘       └──────────┘        │
-     127.0.0.1:9000 │  ┌─────────┐  GPU      │               │
+     127.0.0.1:9100 │  ┌─────────┐  GPU      │               │
    ─────────────────┤  │ Whisper │◄───────────┘               │
                     │  └─────────┘                            │
      127.0.0.1:5002 │  ┌─────────┐                            │
    ─────────────────┤  │  Piper  │  (CPU only)                │
                     │  └─────────┘                            │
-     127.0.0.1:8080 │  ┌─────────┐                            │
+     127.0.0.1:8888 │  ┌─────────┐                            │
+   ─────────────────┤  │SearXNG  │  (web search, CPU only)    │
+                    │  └────┬────┘                            │
+     127.0.0.1:8080 │  ┌────▼────┐                            │
    ─────────────────┤  │ Open    │──► localhost:11434 (Ollama) │
                     │  │ WebUI   │                            │
                     │  └─────────┘                            │
@@ -120,11 +123,11 @@ The function prepends `/llm/ollama` to `$PATH` inside the container, so the `oll
 2. **GPU detection** — `detect-gpu.sh --save` writes `config/gpu.env`
 3. **Image builds** — IPEX or Vulkan Ollama, Whisper SYCL, pull Piper + WebUI
 4. **Quadlet install** — copy `.pod`/`.container` to `~/.config/containers/systemd/`, rewriting Ollama image for Vulkan if needed
-5. **Model directories** — create under `~/.local/share/ai-models/`
+5. **Model directories** — create under `~/.local/share/ai-models/`; seeds `searxng/settings.yml` on first run
 6. **systemd reload** — `systemctl --user daemon-reload`, enable linger
 7. **Start stack** — `systemctl --user start ai-stack-pod.service`
 8. **Starter model** — pull `llama3.2:3b` (or `1b` if VRAM < 6GB)
-9. **Smoke tests** — API health checks for Ollama, Whisper, WebUI + LLM generation test
+9. **Smoke tests** — API health checks for Ollama, Whisper, SearXNG, WebUI + LLM generation test
 10. **Emacs instructions** — printed to terminal
 
 ## Known Gotchas

@@ -43,7 +43,13 @@ cmd_install() {
     mkdir -p "$LLM_ARC_OLLAMA_MODELS" \
              "$LLM_ARC_WHISPER_MODELS" \
              "$LLM_ARC_PIPER_MODELS" \
-             "${LLM_ARC_MODELS}/sycl-cache"
+             "${LLM_ARC_MODELS}/sycl-cache" \
+             "${LLM_ARC_MODELS}/searxng"
+
+    if [[ ! -f "${LLM_ARC_MODELS}/searxng/settings.yml" ]]; then
+        cp "${LLM_ARC_CONFIG}/searxng/settings.yml" "${LLM_ARC_MODELS}/searxng/settings.yml"
+        log_ok "SearXNG settings.yml deployed"
+    fi
 
     # 3. Build container images
     log_info "Building container images..."

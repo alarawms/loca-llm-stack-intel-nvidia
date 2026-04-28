@@ -2,34 +2,56 @@
 
 Local AI stack for Intel Arc and NVIDIA GPUs, managed with Podman Quadlet and integrated with Emacs.
 
-Runs **Ollama** (LLM), **Whisper** (speech-to-text), **Piper** (text-to-speech), and **Open WebUI** in a single rootless pod with GPU passthrough.
+Runs **Ollama** (LLM), **Whisper** (speech-to-text), **Piper** (text-to-speech), **Open WebUI**, and **SearXNG** (web search) in a single rootless pod with GPU passthrough.
 
 ## Quick Start
 
 ```bash
-# Check prerequisites
+# 1. Verify host prerequisites (kernel, groups, GPU drivers, tools)
 ./scripts/00-setup-host.sh
 
-# Install and start everything
+# 2. Install and start everything
 ./install.sh
 ```
 
 The installer will:
-1. Verify host prerequisites (kernel, groups, GPU nodes)
-2. Auto-detect your Intel GPU and select the optimal backend
-3. Build container images (IPEX-LLM or Vulkan for Ollama, SYCL for Whisper)
+1. Verify host prerequisites (kernel, groups, GPU nodes, NVIDIA toolkit)
+2. Auto-detect GPU and select the optimal backend (IPEX / Vulkan / CUDA)
+3. Build container images (IPEX-LLM or Vulkan for Ollama, SYCL/CUDA for Whisper)
 4. Install Quadlet systemd units for boot persistence
 5. Start all services and pull a starter model
-6. Run smoke tests
+6. Run smoke tests (Ollama, Whisper, SearXNG, Open WebUI)
 
 ## Requirements
 
-- **Linux** with kernel >= 6.2
-- **Intel GPU** (iGPU or discrete Arc A/B-series)
-- **Podman** >= 4.4 (for Quadlet support)
-- User in `render` and `video` groups
-- `curl`, `jq` (optional but recommended)
-- **NVIDIA GPU** (optional): Requires `nvidia-container-toolkit` for CDI passthrough
+Run `./scripts/00-setup-host.sh` to check all of these before installing.
+
+**All systems**
+
+| Requirement | Min version | Install |
+|-------------|-------------|---------|
+| Linux kernel | >= 6.2 | `sudo dnf upgrade kernel` |
+| Podman | >= 4.4 | `sudo dnf install podman` |
+| `curl` | any | `sudo dnf install curl` |
+| `jq` | any | `sudo dnf install jq` *(optional — status/benchmark commands)* |
+
+**Intel GPU (iGPU or Arc)**
+
+| Requirement | Notes |
+|-------------|-------|
+| User in `render` group | `sudo usermod -aG render $USER` — needed to open `/dev/dri/renderD*` |
+| User in `video` group | `sudo usermod -aG video $USER` — needed for Vulkan / display access |
+| `/dev/dri/renderD*` present | Confirms GPU driver is loaded |
+
+**NVIDIA GPU**
+
+| Requirement | Notes |
+|-------------|-------|
+| NVIDIA driver + `nvidia-smi` | `sudo dnf install akmod-nvidia` (RPM Fusion) |
+| `nvidia-container-toolkit` | `sudo dnf install nvidia-container-toolkit` — enables GPU passthrough in Podman |
+| CDI spec at `/etc/cdi/nvidia.yaml` | `sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml` — regenerate after each driver upgrade |
+
+> **Both Intel and NVIDIA present?** The installer prefers NVIDIA. Override with `LLM_ARC_GPU_VENDOR=intel`.
 
 ## GPU Support
 
@@ -52,9 +74,10 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 | Service | Port | Description |
 |---------|------|-------------|
 | Ollama | `:11434` | LLM inference (GPU-accelerated) |
-| Whisper | `:9000` | Speech-to-text (GPU-accelerated) |
+| Whisper | `:9100` | Speech-to-text (GPU-accelerated) |
 | Piper | `:5002` | Text-to-speech (CPU, Wyoming protocol) |
 | Open WebUI | `:8080` | Web chat interface |
+| SearXNG | `:8888` | Metasearch engine (web search for AI RAG) |
 
 Services run in a shared Podman pod (`ai-stack`). Ports bind to all interfaces (`0.0.0.0`) for Tailscale access. Use firewall rules (firewalld/nftables) to restrict LAN access if needed.
 
@@ -143,6 +166,7 @@ llm-arc/
     ollama.container                # Ollama Quadlet unit
     whisper.container               # Whisper Quadlet unit
     piper.container                 # Piper TTS Quadlet unit
+    searxng.container               # SearXNG Quadlet unit
     openwebui.container             # Open WebUI Quadlet unit
   emacs/
     llm-arc.el                      # Master Emacs config
@@ -153,6 +177,8 @@ llm-arc/
     llm-arc-mu4e.el                 # mu4e email LLM actions
   config/
     gpu.env                         # Cached GPU detection results
+    searxng/
+      settings.yml                  # SearXNG config (limiter off, JSON enabled)
 ```
 
 ## Data Locations
@@ -164,27 +190,29 @@ llm-arc/
 | `~/.local/share/ai-models/piper` | Piper voice models |
 | `~/.local/share/ai-models/sycl-cache` | SYCL kernel compilation cache |
 | `~/.local/share/ai-models/openwebui` | Open WebUI chat history & settings |
+| `~/.local/share/ai-models/searxng` | SearXNG settings.yml (edit to add engines) |
 | `~/.config/containers/systemd/` | Installed Quadlet unit files |
 
 ## Troubleshooting
 
-**GPU not detected**: Ensure Intel GPU drivers are installed and `/dev/dri/renderD*` exists.
+**Intel GPU not detected**: Ensure GPU drivers are loaded and `/dev/dri/renderD*` exists. Run `./scripts/00-setup-host.sh` — it will pinpoint the issue.
 
-**Permission denied on GPU**: Add user to render/video groups:
+**Permission denied on Intel GPU**: Group membership may not be active yet in the current shell:
 ```bash
 sudo usermod -aG render,video $USER
-# Then log out and back in
+newgrp render   # activate immediately, or log out and back in
 ```
 
-**Whisper slow on first start**: SYCL compiles GPU kernels on first run. Set `SYCL_CACHE_PERSISTENT=1` (already configured) so subsequent starts are fast.
+**NVIDIA GPU not detected**: Confirm `nvidia-smi` works. If not, install the driver:
+```bash
+sudo dnf install akmod-nvidia   # RPM Fusion required
+```
 
-**Ollama out of memory**: Use a smaller quantized model. Run `./scripts/models.sh recommend` for VRAM-appropriate suggestions.
-
-**NVIDIA GPU not detected**: Ensure `nvidia-smi` works and shows your GPU. Install the NVIDIA driver if missing.
-
-**NVIDIA container fails**: Install nvidia-container-toolkit and generate CDI spec:
+**NVIDIA container fails (no GPU visible)**: The CDI spec may be missing or stale. Regenerate it after every driver upgrade:
 ```bash
 sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
 ```
 
-**NVIDIA + Intel both present**: The installer prefers NVIDIA. Override with `LLM_ARC_GPU_VENDOR=intel`.
+**Whisper slow on first start**: SYCL compiles GPU kernels on first run (~1-2 min). `SYCL_CACHE_PERSISTENT=1` (already set) caches the result so subsequent starts are instant.
+
+**Ollama out of memory**: Use a smaller quantized model. Run `./scripts/models.sh recommend` for VRAM-appropriate suggestions.

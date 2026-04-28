@@ -43,26 +43,61 @@ echo ""
 # ── Step 1: Host prerequisite checks ────────────────────────────
 log_step "Step 1/10: Checking host prerequisites"
 
-# Quick checks (don't abort on failure, just warn)
-if ! command -v podman &>/dev/null; then
-    log_error "Podman not installed. Install it first: sudo dnf install podman"
-    exit 1
+# Kernel version (>= 6.2 required for Intel GPU support)
+k_major=$(uname -r | cut -d. -f1)
+k_minor=$(uname -r | cut -d. -f2 | grep -oP '^\d+')
+if ! { [[ "$k_major" -gt 6 ]] || { [[ "$k_major" -eq 6 ]] && [[ "$k_minor" -ge 2 ]]; }; }; then
+    log_warn "Kernel $(uname -r) is older than 6.2 — Intel GPU support may not work"
 fi
 
-# Vendor-aware GPU access check
+# Required tools
+if ! command -v podman &>/dev/null; then
+    log_error "podman not found. Install: sudo dnf install podman"
+    exit 1
+fi
+require_cmd curl
+
+# Optional but recommended
+if ! command -v jq &>/dev/null; then
+    log_warn "jq not found (optional) — status and benchmark commands will be limited"
+    log_info "  Install: sudo dnf install jq"
+fi
+
+# GPU-vendor-aware checks
 if command -v nvidia-smi &>/dev/null && nvidia-smi &>/dev/null 2>&1; then
-    log_info "NVIDIA GPU detected (render group and /dev/dri not required)"
+    log_info "NVIDIA GPU detected"
+
+    # nvidia-container-toolkit required for CDI GPU passthrough in Podman
+    if ! command -v nvidia-ctk &>/dev/null; then
+        log_error "nvidia-container-toolkit not found — required for NVIDIA GPU passthrough"
+        log_info "  Install: sudo dnf install nvidia-container-toolkit"
+        log_info "  Then:    sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"
+        exit 1
+    fi
+
+    # CDI spec consumed by Podman at runtime; must be regenerated after driver upgrades
+    if [[ ! -f /etc/cdi/nvidia.yaml ]]; then
+        log_error "NVIDIA CDI spec missing at /etc/cdi/nvidia.yaml"
+        log_info "  Generate: sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml"
+        exit 1
+    fi
+
+    log_ok "NVIDIA driver, toolkit, and CDI spec OK"
 else
+    # Intel / AMD path — needs render group and GPU render nodes
     if ! id -nG | tr ' ' '\n' | grep -qx render; then
         log_warn "User not in 'render' group. Run: sudo usermod -aG render $USER"
     fi
+    if ! id -nG | tr ' ' '\n' | grep -qx video; then
+        log_warn "User not in 'video' group. Run: sudo usermod -aG video $USER"
+    fi
     if ! compgen -G "/dev/dri/renderD*" >/dev/null; then
         log_error "No GPU render nodes found at /dev/dri/renderD*"
+        log_info "  Ensure Intel GPU drivers are loaded and the user is in the render group"
         exit 1
     fi
 fi
 
-require_cmd curl
 log_ok "Prerequisites OK"
 
 # ── Step 2: Detect GPU ───────────────────────────────────────────
@@ -186,7 +221,14 @@ mkdir -p "$LLM_ARC_OLLAMA_MODELS" \
          "$LLM_ARC_WHISPER_MODELS" \
          "$LLM_ARC_PIPER_MODELS" \
          "${LLM_ARC_MODELS}/sycl-cache" \
-         "${LLM_ARC_MODELS}/openwebui"
+         "${LLM_ARC_MODELS}/openwebui" \
+         "${LLM_ARC_MODELS}/searxng"
+
+# Seed SearXNG config on first install (don't overwrite user changes)
+if [[ ! -f "${LLM_ARC_MODELS}/searxng/settings.yml" ]]; then
+    cp "${LLM_ARC_CONFIG}/searxng/settings.yml" "${LLM_ARC_MODELS}/searxng/settings.yml"
+    log_ok "SearXNG settings.yml deployed"
+fi
 
 log_ok "Model directories created at $LLM_ARC_MODELS"
 
@@ -294,6 +336,15 @@ if [[ $SKIP_START -eq 0 ]]; then
         (( ++smoke_ok ))
     else
         log_warn "Open WebUI not responding (may still be loading)"
+    fi
+
+    # Test SearXNG
+    (( ++smoke_total ))
+    if curl -sf "http://127.0.0.1:${LLM_ARC_SEARXNG_PORT}/healthz" >/dev/null 2>&1; then
+        log_ok "SearXNG search responding"
+        (( ++smoke_ok ))
+    else
+        log_warn "SearXNG not responding (may still be loading)"
     fi
 
     log_info "Smoke tests: ${smoke_ok}/${smoke_total} passed"
