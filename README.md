@@ -2,7 +2,9 @@
 
 Local AI stack for Intel Arc and NVIDIA GPUs, managed with Podman Quadlet and integrated with Emacs.
 
-Runs **Ollama** (LLM), **Whisper** (speech-to-text), **Piper** (text-to-speech), **Open WebUI**, and **SearXNG** (web search) in a single rootless pod with GPU passthrough.
+Runs **Ollama** (LLM), **Whisper** (speech-to-text), **Piper** (text-to-speech), **Open WebUI**, and **SearXNG** (web search) in a rootless Podman pod with GPU passthrough.
+
+Optionally adds a second pod — **Dify** (agent builder, RAG pipelines, workflows) + **Qdrant** (vector DB) — that runs alongside the core stack and connects to Ollama automatically.
 
 ## Quick Start
 
@@ -87,6 +89,8 @@ Backend is auto-selected by `scripts/detect-gpu.sh`. Override with `LLM_ARC_GPU_
 |---------|------|-------------|
 | Dify UI | `:3000` | Agent builder, RAG pipelines, workflows |
 | Qdrant | `:6333` | Vector database (also usable by Open WebUI) |
+
+**Yes, both pods run at the same time.** They use different ports and separate systemd services — `ai-stack-pod.service` and `dify-stack-pod.service`. Dify reaches Ollama through the host's published port (`host.containers.internal:11434`), so there is no shared state or startup ordering dependency between them.
 
 Ports bind to all interfaces (`0.0.0.0`) for Tailscale access. Use firewall rules (firewalld/nftables) to restrict LAN access if needed.
 
@@ -178,7 +182,8 @@ llm-arc/
   scripts/
     env.sh                          # Shared variables and helpers
     detect-gpu.sh                   # Intel GPU auto-detection
-    ai-stack.sh                     # Service lifecycle management
+    ai-stack.sh                     # ai-stack lifecycle management
+    dify-stack.sh                   # dify-stack lifecycle management
     models.sh                       # Model management CLI
     00-setup-host.sh                # Host prerequisite checker
     dictate.sh                      # Dictation helper
@@ -188,12 +193,22 @@ llm-arc/
     Containerfile.whisper-sycl      # whisper.cpp with SYCL backend
     Containerfile.whisper-cuda      # Whisper with CUDA backend (for NVIDIA)
   quadlet/
-    ai-stack.pod                    # Pod definition (shared network)
+    ai-stack.pod                    # ai-stack pod definition
     ollama.container                # Ollama Quadlet unit
     whisper.container               # Whisper Quadlet unit
     piper.container                 # Piper TTS Quadlet unit
     searxng.container               # SearXNG Quadlet unit
     openwebui.container             # Open WebUI Quadlet unit
+    dify-stack.pod                  # dify-stack pod definition
+    dify-qdrant.container           # Qdrant vector DB
+    dify-postgres.container         # PostgreSQL (Dify backend)
+    dify-redis.container            # Redis (Celery queue)
+    dify-api.container              # Dify API server
+    dify-worker.container           # Dify Celery worker
+    dify-web.container              # Dify Next.js frontend
+    dify-sandbox.container          # Code execution sandbox
+    dify-ssrf-proxy.container       # SSRF protection proxy (Squid)
+    dify-nginx.container            # Nginx reverse proxy (routes :3000)
   emacs/
     llm-arc.el                      # Master Emacs config
     llm-arc-gptel.el                # gptel (chat/completion) config
@@ -205,6 +220,9 @@ llm-arc/
     gpu.env                         # Cached GPU detection results
     searxng/
       settings.yml                  # SearXNG config (limiter off, JSON enabled)
+    dify/
+      nginx.conf                    # Nginx routing config (seeded on install)
+      squid.conf                    # SSRF proxy config (seeded on install)
 ```
 
 ## Data Locations
@@ -217,7 +235,10 @@ llm-arc/
 | `~/.local/share/ai-models/sycl-cache` | SYCL kernel compilation cache |
 | `~/.local/share/ai-models/openwebui` | Open WebUI chat history & settings |
 | `~/.local/share/ai-models/searxng` | SearXNG settings.yml (edit to add engines) |
-| `~/.config/containers/systemd/` | Installed Quadlet unit files |
+| `~/.local/share/ai-models/qdrant` | Qdrant vector collections |
+| `~/.local/share/ai-models/dify/` | Dify storage, postgres data, redis data |
+| `~/.local/share/ai-models/dify/dify.env` | Generated secrets (chmod 600, do not commit) |
+| `~/.config/containers/systemd/` | Installed Quadlet unit files (both pods) |
 
 ## Troubleshooting
 
