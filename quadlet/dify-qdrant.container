@@ -9,7 +9,7 @@ Pod=dify-stack.pod
 
 Volume=%h/.local/share/ai-models/qdrant:/qdrant/storage:Z
 
-HealthCmd=curl -sf http://localhost:6333/ || exit 1
+HealthCmd=wget -qO /dev/null http://localhost:6333/ || exit 1
 HealthInterval=30s
 HealthStartPeriod=20s
 

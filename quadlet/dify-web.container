@@ -12,10 +12,6 @@ Environment=CONSOLE_API_URL=
 Environment=APP_API_URL=
 Environment=NEXT_TELEMETRY_DISABLED=1
 
-HealthCmd=curl -sf http://localhost:3000 || exit 1
-HealthInterval=30s
-HealthStartPeriod=60s
-
 [Service]
 Restart=on-failure
 RestartSec=10
