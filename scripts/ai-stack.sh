@@ -22,6 +22,7 @@ SERVICES=(
     "piper.service"
     "searxng.service"
     "openwebui.service"
+    "openclaw.service"
 )
 
 # ── Load GPU config if available ─────────────────────────────────
@@ -240,6 +241,10 @@ cmd_status() {
     if curl -sf "http://127.0.0.1:${LLM_ARC_SEARXNG_PORT}/healthz" >/dev/null 2>&1; then
         log_ok "SearXNG search responding"
     fi
+
+    if curl -sf "http://127.0.0.1:${LLM_ARC_OPENCLAW_PORT}/" >/dev/null 2>&1; then
+        log_ok "OpenClaw agent responding at http://localhost:${LLM_ARC_OPENCLAW_PORT}"
+    fi
 }
 
 cmd_logs() {
@@ -251,12 +256,12 @@ cmd_logs() {
     else
         # Map short names to service names
         case "$svc" in
-            ollama|whisper|piper|searxng|openwebui)
+            ollama|whisper|piper|searxng|openwebui|openclaw)
                 journalctl --user -u "${svc}.service" -f --no-hostname
                 ;;
             *)
                 log_error "Unknown service: $svc"
-                log_info  "Available: ollama, whisper, piper, searxng, openwebui"
+                log_info  "Available: ollama, whisper, piper, searxng, openwebui, openclaw"
                 exit 1
                 ;;
         esac
@@ -362,7 +367,7 @@ cmd_uninstall() {
         basename=$(basename "$f")
         # Only remove files we installed
         case "$basename" in
-            ai-stack.pod|ollama.container|whisper.container|piper.container|searxng.container|openwebui.container)
+            ai-stack.pod|ollama.container|whisper.container|piper.container|searxng.container|openwebui.container|openclaw.container)
                 rm "$f"
                 log_ok "Removed $basename"
                 ;;

@@ -26,6 +26,7 @@ export LLM_ARC_WHISPER_PORT="${LLM_ARC_WHISPER_PORT:-9100}"
 export LLM_ARC_PIPER_PORT="${LLM_ARC_PIPER_PORT:-5002}"
 export LLM_ARC_WEBUI_PORT="${LLM_ARC_WEBUI_PORT:-8080}"
 export LLM_ARC_SEARXNG_PORT="${LLM_ARC_SEARXNG_PORT:-8888}"
+export LLM_ARC_OPENCLAW_PORT="${LLM_ARC_OPENCLAW_PORT:-18789}"
 export LLM_ARC_DIFY_PORT="${LLM_ARC_DIFY_PORT:-3000}"
 export LLM_ARC_QDRANT_PORT="${LLM_ARC_QDRANT_PORT:-6333}"
 
@@ -40,6 +41,7 @@ export LLM_ARC_WHISPER_IMAGE="localhost/whisper-sycl:latest"
 export LLM_ARC_PIPER_IMAGE="docker.io/rhasspy/wyoming-piper:latest"
 export LLM_ARC_WEBUI_IMAGE="ghcr.io/open-webui/open-webui:main"
 export LLM_ARC_SEARXNG_IMAGE="docker.io/searxng/searxng:latest"
+export LLM_ARC_OPENCLAW_IMAGE="ghcr.io/openclaw/openclaw:latest"
 
 # ── Dify + Qdrant images ─────────────────────────────────────────
 export LLM_ARC_QDRANT_IMAGE="docker.io/qdrant/qdrant:latest"

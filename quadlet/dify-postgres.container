@@ -12,8 +12,9 @@ Environment=POSTGRES_DB=dify
 Environment=PGDATA=/var/lib/postgresql/data/pgdata
 
 # DB_PASSWORD comes from the generated dify.env
+# dify.env must contain POSTGRES_PASSWORD= directly — systemd does not expand
+# ${VAR} from EnvironmentFile inside Environment= lines (it's a literal string).
 EnvironmentFile=%h/.local/share/ai-models/dify/dify.env
-Environment=POSTGRES_PASSWORD=${DB_PASSWORD}
 
 Volume=%h/.local/share/ai-models/dify/postgres:/var/lib/postgresql/data:Z
 
