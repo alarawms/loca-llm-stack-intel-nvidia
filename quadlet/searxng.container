@@ -5,18 +5,16 @@ After=network-online.target
 [Container]
 Image=docker.io/searxng/searxng:latest
 ContainerName=searxng
-Pod=ai-stack.pod
+Network=ai-stack.network
+PublishPort=8888:8080
 
 # No GPU needed — SearXNG is a lightweight web app
-
-# Use port 8888 internally (8080 is taken by Open WebUI in the same pod)
-Environment=SEARXNG_PORT=8888
 
 # Persistent config (settings.yml with limiter disabled for API use)
 Volume=%h/.local/share/ai-models/searxng:/etc/searxng:Z
 
 # Health check
-HealthCmd=wget -qO- http://localhost:8888/healthz || exit 1
+HealthCmd=wget -qO- http://localhost:8080/healthz || exit 1
 HealthInterval=30s
 HealthStartPeriod=30s
 

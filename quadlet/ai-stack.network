@@ -1,0 +1,10 @@
+[Unit]
+Description=Local AI Stack network
+
+[Network]
+NetworkName=ai-stack
+# Default Podman bridge with built-in DNS — containers reach each other by
+# ContainerName=, e.g. http://ollama:11434, http://searxng:8080.
+
+[Install]
+WantedBy=default.target

@@ -6,7 +6,8 @@ After=network-online.target
 # Default to IPEX-LLM image; switch to ollama-vulkan:latest for discrete Arc GPUs
 Image=localhost/ollama-ipex:latest
 ContainerName=ollama
-Pod=ai-stack.pod
+Network=ai-stack.network
+PublishPort=11434:11434
 
 # Intel GPU passthrough
 AddDevice=/dev/dri

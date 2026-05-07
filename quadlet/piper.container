@@ -5,7 +5,8 @@ After=network-online.target
 [Container]
 Image=docker.io/rhasspy/wyoming-piper:latest
 ContainerName=piper
-Pod=ai-stack.pod
+Network=ai-stack.network
+PublishPort=5002:5002
 
 # No GPU needed — Piper is faster-than-realtime on CPU
 # This avoids GPU contention with Ollama and Whisper

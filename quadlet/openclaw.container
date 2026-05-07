@@ -5,7 +5,9 @@ After=ollama.service
 [Container]
 Image=ghcr.io/openclaw/openclaw:latest
 ContainerName=openclaw
-Pod=ai-stack.pod
+Network=ai-stack.network
+PublishPort=18789:18789
+PublishPort=18790:18790
 
 # Persistent config and workspace (inside same volume, /home/node/.openclaw/workspace is a subdir)
 Volume=%h/.local/share/ai-models/openclaw/config:/home/node/.openclaw:Z
@@ -20,7 +22,7 @@ EnvironmentFile=%h/.local/share/ai-models/openclaw/openclaw.env
 
 # After setup, configure Ollama in the UI:
 #   Settings → Model Providers → Ollama
-#   Endpoint: http://localhost:11434  (same pod — no host bridge needed)
+#   Endpoint: http://ollama:11434  (resolved via the ai-stack.network DNS)
 
 HealthCmd=curl -sf http://localhost:18789/ || exit 1
 HealthInterval=30s

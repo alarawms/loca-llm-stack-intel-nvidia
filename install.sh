@@ -169,7 +169,7 @@ log_step "Step 4/10: Installing Quadlet unit files"
 
 mkdir -p "$LLM_ARC_QUADLET_DIR"
 
-for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
+for f in "${LLM_ARC_QUADLET}"/*.{network,pod,container}; do
     [[ -f "$f" ]] || continue
     local_basename=$(basename "$f")
 
@@ -268,7 +268,17 @@ log_ok "systemd reloaded"
 if [[ $SKIP_START -eq 0 ]]; then
     log_step "Step 7/10: Starting AI stack"
 
-    systemctl --user start ai-stack-pod.service
+    # Podman 4.9.x (Ubuntu LTS) doesn't support Pod= in .container quadlets,
+    # so the ai-stack uses a shared .network instead. Start the network first
+    # then each container; Quadlet wires Requires/After automatically.
+    systemctl --user start ai-stack-network.service
+    systemctl --user start \
+        ollama.service \
+        whisper.service \
+        piper.service \
+        searxng.service \
+        openwebui.service \
+        openclaw.service
     log_info "Waiting for services to initialize..."
     sleep 5
 

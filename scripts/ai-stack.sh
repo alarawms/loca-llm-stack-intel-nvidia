@@ -15,7 +15,10 @@
 source "$(dirname "${BASH_SOURCE[0]}")/env.sh"
 
 # ── Service names (Quadlet generates these systemd unit names) ───
-POD_SERVICE="ai-stack-pod.service"
+# NOTE: Podman 4.9.x (Ubuntu 24.04 LTS) does not support Pod= in .container
+# quadlets, so the stack uses a shared .network instead. The container
+# services Require= the network service automatically.
+NETWORK_SERVICE="ai-stack-network.service"
 SERVICES=(
     "ollama.service"
     "whisper.service"
@@ -94,7 +97,7 @@ cmd_install() {
     log_info "Installing Quadlet unit files to ${LLM_ARC_QUADLET_DIR}/"
     mkdir -p "$LLM_ARC_QUADLET_DIR"
 
-    for f in "${LLM_ARC_QUADLET}"/*.{pod,container}; do
+    for f in "${LLM_ARC_QUADLET}"/*.{network,pod,container}; do
         [[ -f "$f" ]] || continue
         local basename
         basename=$(basename "$f")
@@ -157,7 +160,8 @@ cmd_install() {
 
 cmd_start() {
     log_step "Starting AI stack..."
-    systemctl --user start "$POD_SERVICE"
+    systemctl --user start "$NETWORK_SERVICE"
+    systemctl --user start "${SERVICES[@]}"
 
     # Wait briefly for services to start
     sleep 2
@@ -166,13 +170,13 @@ cmd_start() {
 
 cmd_stop() {
     log_step "Stopping AI stack..."
-    systemctl --user stop "$POD_SERVICE"
+    systemctl --user stop "${SERVICES[@]}" 2>/dev/null || true
     log_ok "All services stopped"
 }
 
 cmd_restart() {
     log_step "Restarting AI stack..."
-    systemctl --user restart "$POD_SERVICE"
+    systemctl --user restart "${SERVICES[@]}"
     sleep 2
     cmd_status
 }
@@ -181,9 +185,9 @@ cmd_status() {
     log_step "AI Stack Status"
     echo ""
 
-    # Pod status
-    printf "  %-20s " "Pod:"
-    if systemctl --user is-active "$POD_SERVICE" &>/dev/null; then
+    # Network status
+    printf "  %-20s " "Network:"
+    if systemctl --user is-active "$NETWORK_SERVICE" &>/dev/null; then
         printf "${GREEN}running${RESET}\n"
     else
         printf "${RED}stopped${RESET}\n"
@@ -251,8 +255,10 @@ cmd_logs() {
     local svc="${1:-}"
 
     if [[ -z "$svc" ]]; then
-        # Show all pod logs
-        journalctl --user -u "$POD_SERVICE" -f --no-hostname
+        # Show all stack service logs
+        journalctl --user -u "ollama.service" -u "whisper.service" -u "piper.service" \
+            -u "searxng.service" -u "openwebui.service" -u "openclaw.service" \
+            -f --no-hostname
     else
         # Map short names to service names
         case "$svc" in
@@ -358,16 +364,17 @@ cmd_uninstall() {
     log_step "Uninstalling AI stack..."
 
     # Stop services
-    systemctl --user stop "$POD_SERVICE" 2>/dev/null || true
+    systemctl --user stop "${SERVICES[@]}" 2>/dev/null || true
+    systemctl --user stop "$NETWORK_SERVICE" 2>/dev/null || true
 
     # Remove quadlet files
-    for f in "${LLM_ARC_QUADLET_DIR}"/ai-stack.pod "${LLM_ARC_QUADLET_DIR}"/*.container; do
+    for f in "${LLM_ARC_QUADLET_DIR}"/ai-stack.network "${LLM_ARC_QUADLET_DIR}"/*.container; do
         [[ -f "$f" ]] || continue
         local basename
         basename=$(basename "$f")
         # Only remove files we installed
         case "$basename" in
-            ai-stack.pod|ollama.container|whisper.container|piper.container|searxng.container|openwebui.container|openclaw.container)
+            ai-stack.network|ollama.container|whisper.container|piper.container|searxng.container|openwebui.container|openclaw.container)
                 rm "$f"
                 log_ok "Removed $basename"
                 ;;
