@@ -9,10 +9,13 @@ Network=ai-stack.network
 PublishPort=18789:18789
 PublishPort=18790:18790
 
-# Persistent config and workspace (inside same volume, /home/node/.openclaw/workspace is a subdir)
-Volume=%h/.local/share/ai-models/openclaw/config:/home/node/.openclaw:Z
+# Persistent config and workspace (inside same volume, /home/node/.openclaw/workspace is a subdir).
+# :U auto-chowns the host dir to the container's user namespace (the openclaw image runs as
+# uid 1000 "node"; rootless Podman remaps host uid 1000 to container uid 0, so without :U
+# the container "node" user can't write to its own config dir → EACCES on first save).
+Volume=%h/.local/share/ai-models/openclaw/config:/home/node/.openclaw:U,Z
 # Plugin runtime dependencies (sandboxed tools)
-Volume=%h/.local/share/ai-models/openclaw/plugins:/var/lib/openclaw/plugin-runtime-deps:Z
+Volume=%h/.local/share/ai-models/openclaw/plugins:/var/lib/openclaw/plugin-runtime-deps:U,Z
 
 # Disable mDNS Bonjour — required for container networking
 Environment=OPENCLAW_DISABLE_BONJOUR=1
@@ -20,9 +23,11 @@ Environment=OPENCLAW_DISABLE_BONJOUR=1
 # Secrets from generated openclaw.env (OPENCLAW_GATEWAY_TOKEN)
 EnvironmentFile=%h/.local/share/ai-models/openclaw/openclaw.env
 
-# After setup, configure Ollama in the UI:
-#   Settings → Model Providers → Ollama
-#   Endpoint: http://ollama:11434  (resolved via the ai-stack.network DNS)
+# Pre-configure local Ollama provider + default agent model:
+#   ./scripts/openclaw-preconfigure.sh
+# Then in the browser, open http://localhost:18789 → Settings → paste the token
+# from %h/.local/share/ai-models/openclaw/openclaw.env (browser localStorage is the
+# only thing that can't be pre-seeded server-side).
 
 HealthCmd=curl -sf http://localhost:18789/ || exit 1
 HealthInterval=30s
