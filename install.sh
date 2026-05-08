@@ -313,6 +313,15 @@ if [[ $SKIP_START -eq 0 ]]; then
         log_info "Pulling ${starter_model}..."
         ollama_cli pull "$starter_model"
         log_ok "Model $starter_model ready"
+
+        # Pre-configure OpenClaw with the local Ollama provider + default agent
+        # so the only first-run UI step left is the token paste in Settings.
+        # Best-effort: failure here does not fail the install.
+        if [[ -x "${LLM_ARC_SCRIPTS}/openclaw-preconfigure.sh" ]]; then
+            log_info "Pre-configuring OpenClaw..."
+            "${LLM_ARC_SCRIPTS}/openclaw-preconfigure.sh" \
+                || log_warn "OpenClaw pre-config failed — re-run scripts/openclaw-preconfigure.sh later"
+        fi
     else
         log_warn "Ollama not responding yet. Pull a model later:"
         log_info "  ./scripts/models.sh pull llama3.2:3b"
